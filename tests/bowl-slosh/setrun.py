@@ -114,7 +114,7 @@ def setrun(claw_pkg='geoclaw'):
     if clawdata.output_style == 1:
         # Output nout frames at equally spaced times up to tfinal:
         clawdata.num_output_times = 1
-        clawdata.tfinal = 1.0  
+        clawdata.tfinal = 0.5
         clawdata.output_t0 = True  # output at initial (or restart) time?
 
     elif clawdata.output_style == 2:
@@ -262,9 +262,9 @@ def setrun(claw_pkg='geoclaw'):
     amrdata.amr_levels_max = 2
 
     # List of refinement ratios at each level (length at least mxnest-1)
-    amrdata.refinement_ratios_x = [8,4]
-    amrdata.refinement_ratios_y = [8,4]
-    amrdata.refinement_ratios_t = [4,6]
+    amrdata.refinement_ratios_x = [4,4]
+    amrdata.refinement_ratios_y = [4,4]
+    amrdata.refinement_ratios_t = [2,6]
 
 
     # Specify type of each aux variable in amrdata.auxtype.
@@ -315,7 +315,7 @@ def setrun(claw_pkg='geoclaw'):
 
     # == setgauges.data values ==
     # for gauges append lines of the form  [gaugeno, x, y, t1, t2]
-    # rundata.gaugedata.gauges.append([])
+    rundata.gaugedata.gauges.append([1,0.5,1,0,1e10])
 
     return rundata
     # end of function setrun
@@ -348,7 +348,7 @@ def setgeo(rundata):
     # == Algorithm and Initial Conditions ==
     geo_data.sea_level = -10.0
     geo_data.dry_tolerance = 1.e-3
-    geo_data.friction_forcing = True
+    geo_data.friction_forcing = False
     geo_data.manning_coefficient = 0.0
     geo_data.friction_depth = 1.e6
 
@@ -361,14 +361,12 @@ def setgeo(rundata):
 
     # == settopo.data values ==
     topo_data = rundata.topo_data
-    topo_data.topofiles = []
     # for topography, append lines of the form
     #    [topotype, minlevel, maxlevel, t1, t2, fname]
     topo_data.topofiles.append([2, 1, 10, 0., 1.e10, 'bowl.topotype2'])
 
     # == setdtopo.data values ==
     dtopo_data = rundata.dtopo_data
-    dtopo_data.dtopofiles = []
     # for moving topography, append lines of the form :   (<= 1 allowed for now!)
     #   [topotype, minlevel,maxlevel,fname]
 
@@ -378,17 +376,11 @@ def setgeo(rundata):
     # for qinit perturbations, append lines of the form: (<= 1 allowed for now!)
     #   [minlev, maxlev, fname]
 
-    # == fixedgrids.data values ==
-    fixedgrids = rundata.fixed_grid_data.fixedgrids
+    # == setfixedgrids.data values ==
+    fixedgrids = rundata.fixed_grid_data
     # for fixed grids append lines of the form
     # [t1,t2,noutput,x1,x2,y1,y2,xpoints,ypoints,\
     #  ioutarrivaltimes,ioutsurfacemax]
-    #fixedgrids.append([0,1,2,0,1,0,1,3,3,0,0])
-
-    # == fgmax.data values ==
-    fgmax_files = rundata.fgmax_data.fgmax_files
-    # for fixed grids append to this list names of any fgmax input files
-    fgmax_files.append('fgmax_grid.txt')
 
     return rundata
     # end of function setgeo
