@@ -228,7 +228,6 @@ c
 
 !$OMP  CRITICAL (cflm)
 
-        cflmax = dmax1(cflmax,cflgrid)
         cfl_level = dmax1(cfl_level,cflgrid)
 
 !$OMP END CRITICAL (cflm)
@@ -238,9 +237,9 @@ c
 c       # update q
         dtdx = dt/dx
         dtdy = dt/dy
-        do 50 m=1,nvar
-        do 50 i=mbc+1,mitot-mbc
         do 50 j=mbc+1,mjtot-mbc
+        do 50 i=mbc+1,mitot-mbc
+        do 50 m=1,nvar
          if (mcapa.eq.0) then
 c
 c            # no capa array.  Standard flux differencing:

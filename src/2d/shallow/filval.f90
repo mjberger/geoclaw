@@ -10,7 +10,7 @@
 !
 !
 ! ------------------------------------------------------------------
-subroutine filval(val, mx, my, dx, dy, level, time, valc, auxc, mic, &
+subroutine filval(val, mx, my, dx, dy, level, time,  mic, &
                   mjc, xleft, xright, ybot, ytop, nvar, mptr, ilo, ihi, &
                   jlo, jhi, aux, naux, locflip, sp_over_h)
 
@@ -26,13 +26,13 @@ subroutine filval(val, mx, my, dx, dy, level, time, valc, auxc, mic, &
     integer, intent(in) :: mx, my, level, mic, mjc, nvar, mptr, ilo, ihi
     integer, intent(in) :: jlo, jhi, naux, locflip
     real(kind=8), intent(in) :: dx, dy, time, xleft, xright, ybot, ytop
-    real(kind=8), intent(in) :: valc(nvar,mic,mjc), auxc(naux,mic,mjc)
 
     ! Output
     real(kind=8), intent(in out) :: sp_over_h
     real(kind=8), intent(in out) :: val(nvar,mx,my), aux(naux,mx,my)
 
     ! Local storage
+    real(kind=8) :: valc(nvar,mic,mjc), auxc(naux,mic,mjc)
     integer :: refinement_ratio_x, refinement_ratio_y, iclo, jclo, ichi, jchi, ng, i, ico, ifine
     integer :: ii, ivar, j, jco, jfine, jj
     real(kind=8) :: coarseval(3), dx_coarse, dy_coarse, xl, xr, yb, yt, area

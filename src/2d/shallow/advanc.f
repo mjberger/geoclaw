@@ -77,9 +77,11 @@ c      call fgrid_advance(time,delt)
       dtlevnew = rinfinity
       cfl_level = 0.d0    !# to keep track of max cfl seen on each level
 c 
-        
+c  set number of thrad to use. later will base on number of grids
+      nt = 4
 
-!$OMP PARALLEL DO PRIVATE(j,mptr,nx,ny,mitot,mjtot)  
+!$OMP PARALLEL DO num_threads(nt)
+!$OMP&            PRIVATE(j,mptr,nx,ny,mitot,mjtot)  
 !$OMP&            PRIVATE(mythread,dtnew)
 !$OMP&            SHARED(rvol,rvoll,level,nvar,mxnest,alloc,intrat)
 !$OMP&            SHARED(nghost,intratx,intraty,hx,hy,naux,listsp)
