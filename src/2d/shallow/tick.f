@@ -193,7 +193,7 @@ c
           call system_clock(clock_start,clock_rate)
           call regrid(nvar,lbase,cut,naux,start_time)
           call system_clock(clock_finish,clock_rate)
-          timeRegridding = timeRegridding + + clock_finish - clock_start
+          timeRegridding = timeRegridding + clock_finish - clock_start
 
           call setbestsrc()     ! need at every grid change
 c         call conck(1,nvar,naux,time,rest)

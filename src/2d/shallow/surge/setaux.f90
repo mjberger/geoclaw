@@ -37,6 +37,7 @@ subroutine setaux(mbc,mx,my,xlow,ylow,dx,dy,maux,aux)
     real(kind=8) :: x,y,xm,ym,xp,yp,topo_integral
     character(len=*), parameter :: aux_format = "(2i4,4d15.3)"
     
+
     ! Lat-Long coordinate system in use, check input variables
     if (coordinate_system == 2) then
         if (mcapa /= 2 .or. maux < 3) then

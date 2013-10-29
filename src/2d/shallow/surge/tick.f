@@ -15,7 +15,7 @@ c     include  "call.i"
 
       logical vtime,dumpout/.false./,dumpchk/.false./,rest,dump_final
       dimension dtnew(maxlv), ntogo(maxlv), tlevel(maxlv)
-
+      integer clock_start, clock_finish, clock_rate
 
 c
 c :::::::::::::::::::::::::::: TICK :::::::::::::::::::::::::::::
@@ -198,7 +198,12 @@ c level 'lbase' stays fixed.
 c
           if (rprint) write(outunit,101) lbase
 101       format(8h  level ,i5,32h  stays fixed during regridding )
+
+          call system_clock(clock_start,clock_rate)
           call regrid(nvar,lbase,cut,naux,start_time)
+          call system_clock(clock_finish,clock_rate)
+          timeRegridding = timeRegridding + clock_finish - clock_start
+
           call setbestsrc()     ! need at every grid change
 c         call conck(1,nvar,naux,time,rest)
 c         call outtre(lstart(lbase+1),.true.,nvar,naux)
@@ -298,7 +303,7 @@ c                   adjust time steps for this and finer levels
                  if (ntogo(level) .gt. 100) then
                      write(6,*) "**** Too many dt reductions ****"
                      write(6,*) "**** Stopping calculation   ****"
-                     write(6,*) "Writing checkpoint file ..."
+                     write(6,*) "Writing checkpoint file at t = ",time
                      call check(ncycle,time,nvar,naux)
                      stop
                  endif
@@ -306,7 +311,10 @@ c                   adjust time steps for this and finer levels
                  go to 60
               else
                  level = level - 1
+                 call system_clock(clock_start,clock_rate)
                  call update(level,nvar,naux)
+                 call system_clock(clock_finish,clock_rate)
+                 timeUpdating = timeUpdating+clock_finish - clock_start
               endif
           go to 105
 c

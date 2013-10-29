@@ -141,9 +141,9 @@ contains
             aux(friction_index,:,:) = manning_coefficient(0)
         else
             ! Set region based coefficients
-            do m=1, num_friction_regions
+              do j=1 - num_ghost, my + num_ghost                        
                 do i=1 - num_ghost, mx + num_ghost
-                    do j=1 - num_ghost, my + num_ghost                        
+                   do m=1, num_friction_regions
                         x = xlower + (i-0.5d0) * dx
                         y = ylower + (j-0.5d0) * dy
                         if (friction_regions(m)%lower(1) < x .and.   &
@@ -159,6 +159,7 @@ contains
 
                                     aux(friction_index,i,j) = &
                                      friction_regions(m)%manning_coefficients(k)
+                                  exit
                                 endif
                             enddo
                         endif
@@ -172,6 +173,65 @@ contains
         end if
 
     end subroutine set_friction_field
+
+    subroutine set_friction_fieldCopy(mx, my, num_ghost, num_aux, xlower, ylower, &
+                                  dx, dy, aux, auxflags)
+
+        use geoclaw_module, only: manning_coefficient, sea_level
+
+        implicit none
+
+        ! Input
+        integer, intent(in) :: mx, my, num_ghost, num_aux
+        real(kind=8), intent(in) :: xlower, ylower, dx, dy
+        real(kind=8), intent(in out) :: aux(num_aux,                           &
+                                            1-num_ghost:mx+num_ghost,       &
+                                            1-num_ghost:my+num_ghost)
+        real(kind=8), intent(in out) :: auxflags(1-num_ghost:mx+num_ghost, &
+                                                 1-num_ghost:my+num_ghost)
+        ! Locals
+        integer :: m,i,j,k
+        real(kind=8) :: x, y
+
+        if (.not.variable_friction) then
+            ! No variable friction
+            aux(friction_index,:,:) = manning_coefficient(0)
+        else
+            ! Set region based coefficients
+              do j=1 - num_ghost, my + num_ghost                        
+                do i=1 - num_ghost, mx + num_ghost
+                if (auxflags(i,j) .ne. 0) cycle
+                   do m=1, num_friction_regions
+                        x = xlower + (i-0.5d0) * dx
+                        y = ylower + (j-0.5d0) * dy
+                        if (friction_regions(m)%lower(1) < x .and.   &
+                            friction_regions(m)%lower(2) < y .and.   &
+                            friction_regions(m)%upper(1) >= x .and.  &
+                            friction_regions(m)%upper(2) >= y) then
+
+                            do k=1,size(friction_regions(m)%depths) - 1
+                                if (friction_regions(m)%depths(k+1)            &
+                                                <= aux(1,i,j) - sea_level.and. &
+                                    friction_regions(m)%depths(k)              &
+                                                 > aux(1,i,j) - sea_level) then
+
+                                    aux(friction_index,i,j) = &
+                                     friction_regions(m)%manning_coefficients(k)
+                                  exit
+                                endif
+                            enddo
+                        endif
+                    enddo
+                enddo
+            enddo
+
+            if (num_friction_files > 0) then
+                stop "*** ERROR *** File based friction specification not implemented."
+            endif
+        end if
+
+    end subroutine set_friction_fieldCopy
+
 
 
     ! ==========================================================================

@@ -74,7 +74,7 @@ subroutine step2(maxm,meqn,maux,mbc,mx,my, &
     ! Parameters
     ! Relimit fluxes to maintain positivity
     logical, parameter :: relimit = .false.
-    logical threads_avail/.true./
+    logical threads_avail/.false./
     nt = 2
 
     cflgrid = 0.d0

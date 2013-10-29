@@ -78,9 +78,10 @@ c      call fgrid_advance(time,delt)
       cfl_level = 0.d0    !# to keep track of max cfl seen on each level
 c 
 c  set number of thrad to use. later will base on number of grids
-      nt = 4
+c     nt = 4
+c   ! $OMP PARALLEL DO num_threads(nt)
 
-!$OMP PARALLEL DO num_threads(nt)
+!$OMP PARALLEL DO 
 !$OMP&            PRIVATE(j,mptr,nx,ny,mitot,mjtot)  
 !$OMP&            PRIVATE(mythread,dtnew)
 !$OMP&            SHARED(rvol,rvoll,level,nvar,mxnest,alloc,intrat)

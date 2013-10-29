@@ -12,7 +12,7 @@
 ! ------------------------------------------------------------------
 subroutine filval(val, mx, my, dx, dy, level, time,  mic, &
                   mjc, xleft, xright, ybot, ytop, nvar, mptr, ilo, ihi, &
-                  jlo, jhi, aux, naux, locflip, sp_over_h)
+                  jlo, jhi, aux, naux, locflip, sp_over_h, auxflags)
 
     use amr_module, only: xlower, ylower, intratx, intraty, nghost, xperdom
     use amr_module, only: yperdom, spheredom, xupper, yupper
@@ -29,7 +29,7 @@ subroutine filval(val, mx, my, dx, dy, level, time,  mic, &
 
     ! Output
     real(kind=8), intent(in out) :: sp_over_h
-    real(kind=8), intent(in out) :: val(nvar,mx,my), aux(naux,mx,my)
+    real(kind=8), intent(in out) :: val(nvar,mx,my), aux(naux,mx,my),auxflags(mx,my)
 
     ! Local storage
     real(kind=8) :: valc(nvar,mic,mjc), auxc(naux,mic,mjc)
@@ -219,8 +219,13 @@ subroutine filval(val, mx, my, dx, dy, level, time,  mic, &
     enddo !end of coarse loop
 
     ! overwrite interpolated values with fine grid values, if available.
-    call intcopy(val,mx,my,nvar,ilo-nghost,ihi+nghost,jlo-nghost, &
-                 jhi+nghost,level,1,1)
+!!$    call intcopy(val,mx,my,nvar,ilo-nghost,ihi+nghost,jlo-nghost, &
+!!$                 jhi+nghost,level,1,1)              
+       call icallCopy(val,aux,mx,my,nvar,naux,ilo,ihi,jlo, &                    
+                  jhi,level,1+nghost,1+nghost,auxflags,mptr)   
+
+!      set remaining aux arrays values not  set by copying from prev existing grids
+       call setauxCopy(nghost,mx,my,xleft,ybot,dx,dy,naux,aux,auxflags)
 
     ! scan for max wave speed on newly created grid. this will be used to set appropriate
     ! time step and appropriate refinement in time. For this app not nec to refine by same
@@ -228,7 +233,7 @@ subroutine filval(val, mx, my, dx, dy, level, time,  mic, &
     ! speeds.
 
     if (varRefTime) then   ! keep consistent with setgrd_geo and qinit_geo
-        sp_over_h = get_max_speed(val,mx,my,nvar,aux,naux,nghost,dx,dy)
+        sp_over_h = get_max_speed(val,mx-2*nghost,my-2*nghost,nvar,aux,naux,nghost,dx,dy)
     endif
 
 end subroutine filval
