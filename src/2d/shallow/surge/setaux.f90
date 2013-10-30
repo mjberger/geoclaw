@@ -49,10 +49,10 @@ subroutine setaux(mbc,mx,my,xlow,ylow,dx,dy,maux,aux)
     endif
     
     ! Set default values for aux variables
-    aux(1,:,:) = 0.d0 ! Bathymetry
-    aux(2,:,:) = 1.d0 ! Grid cell area
-    aux(3,:,:) = 1.d0 ! Length ratio for edge
-    aux(friction_index,:,:) = 0.d0 ! Friction field
+!!$    aux(1,:,:) = 0.d0 ! Bathymetry
+!!$    aux(2,:,:) = 1.d0 ! Grid cell area
+!!$    aux(3,:,:) = 1.d0 ! Length ratio for edge
+!!$    aux(friction_index,:,:) = 0.d0 ! Friction field
 
     ! Set these to something non-offensive
     aux(wind_index,:,:) = 0.d0 ! Wind speed x-direction

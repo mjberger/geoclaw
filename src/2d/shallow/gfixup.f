@@ -71,7 +71,10 @@ c   first get space, since cant do that part in parallel
           loc    = igetsp(mitot * mjtot * nvar)
           node(store1, mptr)  = loc
           if (naux .gt. 0) then  ! extra spot used for flags
-            locaux = igetsp(mitot * mjtot * (naux+1))
+             locaux = igetsp(mitot * mjtot * naux)
+!--             corn1 = rnode(cornxlo,mptr)
+!--             corn2 = rnode(cornylo,mptr)
+!--          call setaux(nghost,nx,ny,corn1,corn2,hx,hy,naux,alloc(locaux))
           else
             locaux = 1
           endif
@@ -79,11 +82,13 @@ c   first get space, since cant do that part in parallel
        end do
 
 c   
-!$OMP PARALLEL DO if (.false.)
+c                 other reduction variables initialized in stst1
+                  this_spoh = 0.d0
+!$OMP PARALLEL DO 
 !$OMP&            PRIVATE(clock_start,clock_finish,clock_rate)
 !$OMP&            PRIVATE(j,mptr,nx,ny,mitot,mjtot,corn1,corn2,loc)
 !$OMP&            PRIVATE(locaux,time,mic,mjc,xl,xr,yb,yt,ilo,ihi)
-!$OMP&            PRIVATE(jlo,jhi,iperim,locflip,sp_over_h,locauxflags)
+!$OMP&            PRIVATE(jlo,jhi,iperim,sp_over_h)
 !$OMP&            SHARED(newnumgrids,listnewgrids,nghost,node,hx,hy)
 !$OMP&            SHARED(rnode,intratx,intraty,lcheck,nvar,alloc,naux)
 !$OMP&            REDUCTION(MAX:this_spoh)
@@ -108,7 +113,6 @@ c  involves changing intcopy to icall and making flag array
               loc    =  node(store1, mptr)
               if (naux .gt. 0) then
                 locaux =  node(storeaux, mptr)
-                locauxflags = locaux + naux*mitot*mjtot
               endif
 c                 call system_clock(clock_start,clock_rate)
 c                 call setauxPrepFlags(nghost,nx,ny,corn1,corn2,hx,hy,
@@ -149,21 +153,22 @@ c         ## need to get scratch space here, since passing ins
 c         ## variables indexed into alloc. This is in case dynamic
 c         ## memory would have changed the alloc location
           iperim = mitot+mjtot    ! get max amount possible
-          locflip = igetsp(iperim*(nvar+naux))
+          !!locflip = igetsp(iperim*(nvar+naux))
 
            call system_clock(clock_start,clock_rate)
            call filval(alloc(loc),mitot,mjtot,hx,hy,lcheck,time,
      1                  mic,mjc,
      2                 xl,xr,yb,yt,nvar,
      3                 mptr,ilo,ihi,jlo,jhi,
-     4                 alloc(locaux),naux,locflip,
-     5                 sp_over_h,alloc(locauxflags))
+     4                 alloc(locaux),naux,
+     5                 sp_over_h)
+!!     4                 alloc(locaux),naux,locflip,
            call system_clock(clock_finish,clock_rate)
            timeFilval = timeFilval + clock_finish - clock_start
            this_spoh = max(this_spoh, sp_over_h)
  
 !           call reclam(ivalc,mic*mjc*(nvar+naux))
-           call reclam(locflip,iperim*(nvar+naux))
+!           call reclam(locflip,iperim*(nvar+naux))
 
  
 !           mptr = node(levelptr, mptr)
@@ -171,6 +176,7 @@ c         ## memory would have changed the alloc location
         end do
 !$OMP END PARALLEL DO
        spoh(lcheck) = this_spoh
+
 
 c
 c  done filling new grids at level. move them into lstart from newstl
@@ -276,55 +282,3 @@ c  so I didnt want to have to deal with it
 
        return
        end
-!--c
-!--c -------------------------------------------------------------------------------------
-!--c
-!--       subroutine setauxPrepFlags(mbc,mx,my,xlow,ylow,dx,dy,maux,aux,
-!--     &                            mgrid)
-!--
-!--
-!--
-!--       use amr_module
-!--       implicit double precision (a-h,o-z)
-!--
-!--       integer(kind=1) auxflags(1-nghost:mx+mbc,1-nghost:my+nghost)
-!--       iadd(ivar,i,j) = loc + ivar-1 + nvar*((j-1)*mi+i-1)
-!--       iaddaux(ivar,i,j) = locaux + ivar-1 + naux*((j-1)*mitot+i-1)
-!--
-!--
-!--       level = node(mgrid,nestlevel)
-!--       ilo = node(ndilo,mptr)
-!--       ihi = node(ndihi,mptr)
-!--       jlo = node(ndjlo,mptr)
-!--       jhi = node(ndjhi,mptr)
-!--       auxflags = 0
-!--
-!--       mptr = lstart(level)
-!--       if (mptr .eq. 0) go to 40
-!--
-!--          iglo = node(ndilo,mptr)
-!--          ighi = node(ndihi,mptr)
-!--          jglo = node(ndjlo,mptr)
-!--          jghi = node(ndjhi,mptr)
-!--
-!--c         # does it intersect?
-!--          ixlo = max(iglo,ilo)
-!--          ixhi = min(ighi,ihi)
-!--          jxlo = max(jglo,jlo)
-!--          jxhi = min(jghi,jhi)
-!--          locaux = 
-!--
-!--          if (ixlo .le. ixhi .and. jxlo .le. jxhi) then
-!--                 do j = jxlo, jxhi
-!--                 do i = ixlo, ixhi
-!--                    auxflags(i-ilo+1,j-jlo+1) = 1
-!--                    aux(1:maux,i-ilo+1,j-jlo+1) = 
-!--                 end do
-!--                 end do
-!--
-!--
-!--
-!--
-!--             call setauxCopy(nghost,nx,ny,corn1,corn2,hx,hy,
-!--     &                    naux,alloc(locaux))
-!--

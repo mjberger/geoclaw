@@ -10,12 +10,13 @@
 !
 !
 ! ------------------------------------------------------------------
-subroutine filval(val, mx, my, dx, dy, level, time,  mic, &
+subroutine filval(val, mitot, mjtot, dx, dy, level, time,  mic, &
                   mjc, xleft, xright, ybot, ytop, nvar, mptr, ilo, ihi, &
-                  jlo, jhi, aux, naux, locflip, sp_over_h, auxflags)
+                  jlo, jhi, aux, naux,  sp_over_h)
+!!                  jlo, jhi, aux, naux, locflip, sp_over_h)
 
     use amr_module, only: xlower, ylower, intratx, intraty, nghost, xperdom
-    use amr_module, only: yperdom, spheredom, xupper, yupper
+    use amr_module, only: yperdom, spheredom, xupper, yupper, alloc
 
     use geoclaw_module, only: dry_tolerance, sea_level
     use refinement_module, only: varRefTime
@@ -23,13 +24,14 @@ subroutine filval(val, mx, my, dx, dy, level, time,  mic, &
     implicit none
 
     ! Input
-    integer, intent(in) :: mx, my, level, mic, mjc, nvar, mptr, ilo, ihi
-    integer, intent(in) :: jlo, jhi, naux, locflip
+    integer, intent(in) :: mitot, mjtot, level, mic, mjc, nvar, mptr, ilo, ihi
+    integer, intent(in) :: jlo, jhi, naux
+!!    integer, intent(in) :: jlo, jhi, naux, locflip
     real(kind=8), intent(in) :: dx, dy, time, xleft, xright, ybot, ytop
 
     ! Output
     real(kind=8), intent(in out) :: sp_over_h
-    real(kind=8), intent(in out) :: val(nvar,mx,my), aux(naux,mx,my),auxflags(mx,my)
+    real(kind=8), intent(in out) :: val(nvar,mitot,mjtot), aux(naux,mitot,mjtot)
 
     ! Local storage
     real(kind=8) :: valc(nvar,mic,mjc), auxc(naux,mic,mjc)
@@ -39,6 +41,8 @@ subroutine filval(val, mx, my, dx, dy, level, time,  mic, &
     real(kind=8) :: dividemass, finemass, hvf, s1m, s1p, slopex, slopey, vel
     real(kind=8) :: velmax, velmin, vf, vnew, xoff, yoff
     logical :: fineflag(3)
+    integer(kind=1) ::  auxflags(mitot,mjtot)   
+    real(kind=8) :: fliparray((mitot+mjtot)*(nvar+naux))
 
     ! External function definitions
     real(kind=8) :: get_max_speed
@@ -63,7 +67,7 @@ subroutine filval(val, mx, my, dx, dy, level, time,  mic, &
 
     if (naux == 0) then
         if (xperdom .or. yperdom .or. spheredom) then
-            call preintcopy(valc,mic,mjc,nvar,iclo,ichi,jclo,jchi,level - 1,locflip)
+            call preintcopy(valc,mic,mjc,nvar,iclo,ichi,jclo,jchi,level - 1,fliparray)
         else
             call intcopy(valc,mic,mjc,nvar,iclo,ichi,jclo,jchi,level - 1,1,1)
         endif
@@ -71,7 +75,7 @@ subroutine filval(val, mx, my, dx, dy, level, time,  mic, &
         ! intersect grids and copy all (soln and aux)
         if (xperdom .or. yperdom .or. spheredom) then
             call preicall(valc,auxc,mic,mjc,nvar,naux,iclo,ichi,jclo,jchi, &
-                          level - 1,locflip)
+                          level - 1,fliparray)
         else
             call icall(valc,auxc,mic,mjc,nvar,naux,iclo,ichi,jclo,jchi,level - 1,1,1)
         endif
@@ -219,13 +223,14 @@ subroutine filval(val, mx, my, dx, dy, level, time,  mic, &
     enddo !end of coarse loop
 
     ! overwrite interpolated values with fine grid values, if available.
-!!$    call intcopy(val,mx,my,nvar,ilo-nghost,ihi+nghost,jlo-nghost, &
+!!$    call intcopy(val,mitot,mjtot,nvar,ilo-nghost,ihi+nghost,jlo-nghost, &
 !!$                 jhi+nghost,level,1,1)              
-       call icallCopy(val,aux,mx,my,nvar,naux,ilo,ihi,jlo, &                    
+!! also might need preicallCopy???
+       call icallCopy(val,aux,mitot,mjtot,nvar,naux,ilo,ihi,jlo, &                    
                   jhi,level,1+nghost,1+nghost,auxflags,mptr)   
 
 !      set remaining aux arrays values not  set by copying from prev existing grids
-       call setauxCopy(nghost,mx,my,xleft,ybot,dx,dy,naux,aux,auxflags)
+       call setauxCopy(nghost,mitot,mjtot,xleft,ybot,dx,dy,naux,aux,auxflags)
 
     ! scan for max wave speed on newly created grid. this will be used to set appropriate
     ! time step and appropriate refinement in time. For this app not nec to refine by same
@@ -233,7 +238,7 @@ subroutine filval(val, mx, my, dx, dy, level, time,  mic, &
     ! speeds.
 
     if (varRefTime) then   ! keep consistent with setgrd_geo and qinit_geo
-        sp_over_h = get_max_speed(val,mx-2*nghost,my-2*nghost,nvar,aux,naux,nghost,dx,dy)
+        sp_over_h = get_max_speed(val,mitot,mjtot,nvar,aux,naux,nghost,dx,dy)
     endif
 
 end subroutine filval

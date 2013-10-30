@@ -187,7 +187,7 @@ contains
         real(kind=8), intent(in out) :: aux(num_aux,                           &
                                             1-num_ghost:mx+num_ghost,       &
                                             1-num_ghost:my+num_ghost)
-        real(kind=8), intent(in out) :: auxflags(1-num_ghost:mx+num_ghost, &
+        integer(kind=1), intent(in out) :: auxflags(1-num_ghost:mx+num_ghost, &
                                                  1-num_ghost:my+num_ghost)
         ! Locals
         integer :: m,i,j,k
@@ -199,11 +199,11 @@ contains
         else
             ! Set region based coefficients
               do j=1 - num_ghost, my + num_ghost                        
+                y = ylower + (j-0.5d0) * dy
                 do i=1 - num_ghost, mx + num_ghost
                 if (auxflags(i,j) .ne. 0) cycle
                    do m=1, num_friction_regions
                         x = xlower + (i-0.5d0) * dx
-                        y = ylower + (j-0.5d0) * dy
                         if (friction_regions(m)%lower(1) < x .and.   &
                             friction_regions(m)%lower(2) < y .and.   &
                             friction_regions(m)%upper(1) >= x .and.  &
