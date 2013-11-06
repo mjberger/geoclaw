@@ -15,6 +15,8 @@ c
       integer newnumgrids(maxlv),listnewgrids(maxnumnewgrids)
 
       integer clock_start, clock_finish, clock_rate
+      logical mjb
+      integer mbad
 c
 c ::::::::::::::::::::::::: GFIXUP ::::::::::::::::::::::::::::::::;
 c        interpolate initial values for the newly created grids.
@@ -29,6 +31,7 @@ c  (if level = mxnest so that error never estimated) don't have
 c  2 copies of solution values at old and new times.
 c
 c
+      mjb = .false. 
       call putsp(lbase,lbase,nvar,naux)
       level = lbase + 1
  1    if (level .gt. lfine) go to 4
@@ -114,11 +117,15 @@ c  involves changing intcopy to icall and making flag array
               if (naux .gt. 0) then
                 locaux =  node(storeaux, mptr)
               endif
-c                 call system_clock(clock_start,clock_rate)
-c                 call setauxPrepFlags(nghost,nx,ny,corn1,corn2,hx,hy,
-c                                  naux,alloc(locaux),mptr)
-!--                 call setaux(nghost,nx,ny,corn1,corn2,hx,hy,
-!--     &                    naux,alloc(locaux))
+c for DEBUGGING SET HERE AND TEST THAT SAME IN ICALLCOPY
+c                 call setaux(nghost,nx,ny,corn1,corn2,hx,hy,
+c     &                    naux,alloc(locaux))
+c                 if (mjb) then
+c                     mbad = 14
+c                     call lookataux(mbad,alloc(node(storeaux,mbad)),
+c     &                 node(ndilo,mbad),node(ndihi,mbad),
+c     &                 node(ndjlo,mbad),node(ndjhi,mbad),nghost,mjb)
+c                 endif
 c                 call system_clock(clock_finish,clock_rate)
 c                timeSetaux = timeSetaux + clock_finish - clock_start
               time   = rnode(timemult, mptr)
@@ -278,6 +285,23 @@ c  so I didnt want to have to deal with it
        if (mptr .ne. 0) then
          write(*,*)" Error in routine setting up grid array "
          stop
+       endif
+
+       return
+       end
+c
+c -------------------------------------------------------------------------------------
+c
+       subroutine lookataux(mptr,aux,ilo,ihi,jlo,jhi,nghost,mjb)
+
+       implicit real*8 (a-h,o-z)
+       dimension aux(7,ilo-nghost:ihi+nghost,jlo-nghost:jhi+nghost)
+       logical mjb
+
+       if (mjb) then
+            i = ilo
+            j = jlo
+           write(*,*) (aux(iaux,i,j),iaux=1,4)
        endif
 
        return

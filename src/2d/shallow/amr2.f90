@@ -81,7 +81,7 @@ program amr2
     use amr_module, only: lfine, lentot, iregridcount, avenumgrids
     use amr_module, only: tvoll, rvoll, rvol, mstart, possk, ibuff
     use amr_module, only: timeRegridding, timeUpdating, timeValout
-    use amr_module, only: timeGrdfitAll,timeGrdfit1,timeGrdfit2,timeSetaux,timeFilval
+    use amr_module, only: timeGrdfitAll,timeFlglvl,timeGrdfit2,timeSetaux,timeFilval
     use amr_module, only: kcheck, iorder, lendim, lenmax
 
     use amr_module, only: dprint, eprint, edebug, gprint, nprint, pprint
@@ -610,9 +610,9 @@ program amr2
     format_string = "('Total Grdfit     time            ',1f16.8,' s')"
     write(outunit,format_string)  real(timeGrdfitAll,kind=8) / real(clock_rate,kind=8)
     write(*,format_string) real(timeGrdfitAll,kind=8) / real(clock_rate,kind=8)
-    format_string = "('Total Grdfit1    time            ',1f16.8,' s')"
-    write(outunit,format_string)  real(timeGrdfit1,kind=8) / real(clock_rate,kind=8)
-    write(*,format_string) real(timeGrdfit1,kind=8) / real(clock_rate,kind=8)
+    format_string = "('Total Flglvl    time            ',1f16.8,' s')"
+    write(outunit,format_string)  real(timeFlglvl,kind=8) / real(clock_rate,kind=8)
+    write(*,format_string) real(timeFlglvl,kind=8) / real(clock_rate,kind=8)
     format_string = "('Total gfixup     time            ',1f16.8,' s')"
     write(outunit,format_string)  real(timeGrdfit2,kind=8) / real(clock_rate,kind=8)
     write(*,format_string) real(timeGrdfit2,kind=8) / real(clock_rate,kind=8)

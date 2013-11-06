@@ -27,6 +27,7 @@ subroutine setaux(mbc,mx,my,xlow,ylow,dx,dy,maux,aux)
     integer :: i,j,m
     real(kind=8) :: x,y,xm,ym,xp,yp,topo_integral
     character(len=*), parameter :: aux_format = "(2i4,4d15.3)"
+    integer :: iv
     
     ! Lat-Long coordinate system in use, check input variables
     if (coordinate_system == 2) then
@@ -39,9 +40,9 @@ subroutine setaux(mbc,mx,my,xlow,ylow,dx,dy,maux,aux)
     endif
     
     ! Set default values for aux variables
-    aux(1,:,:) = 0.d0 ! Bathymetry
-    aux(2,:,:) = 1.d0 ! Grid cell area
-    aux(3,:,:) = 1.d0 ! Length ratio for edge
+!    aux(1,:,:) = 0.d0 ! Bathymetry
+!    aux(2,:,:) = 1.d0 ! Grid cell area
+!    aux(3,:,:) = 1.d0 ! Length ratio for edge
     
     ! Set analytical bathymetry here if requested
     if (test_topography > 0) then
@@ -56,7 +57,7 @@ subroutine setaux(mbc,mx,my,xlow,ylow,dx,dy,maux,aux)
         ym = ylow + (j - 1.d0) * dy
         y = ylow + (j - 0.5d0) * dy
         yp = ylow + real(j,kind=8) * dy
-        do i=1-mbc,mx+mbc
+        do  i=1-mbc,mx+mbc
             xm = xlow + (i - 1.d0) * dx
             x = xlow + (i - 0.5d0) * dx
             xp = xlow + real(i,kind=8) * dx
@@ -77,8 +78,13 @@ subroutine setaux(mbc,mx,my,xlow,ylow,dx,dy,maux,aux)
                 
                     aux(1,i,j) = topo_integral / (dx * dy * aux(2,i,j))
             endif
-        enddo
-    enddo
+           if (i .eq. 13 .and. j .eq. 2) then
+               write(*,*) " in setaux (2)  with i,j = ",i,j
+               write(*,*)(aux(iv,i,j),iv=1,maux)
+               write(*,*) topo_integral,dx,dy
+            endif
+      end do
+   end do 
 
     ! Output for debugging
     if (.false.) then

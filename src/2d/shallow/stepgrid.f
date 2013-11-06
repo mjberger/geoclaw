@@ -44,7 +44,7 @@ c      parameter (mwork=msize*(maxvar*maxvar + 13*maxvar + 3*maxaux +2))
 c      dimension work(mwork)
 
       logical, parameter :: debug = .false.
-      logical, parameter :: dump = .false.
+      logical :: dump = .false.
 c
       
       level = node(nestlevel,mptr)
@@ -53,9 +53,10 @@ c
          write(outunit,*)" at start of stepgrid: dumping grid ",mptr
          do i = 1, mitot
          do j = 1, mjtot
-            write(outunit,545) i,j,(q(ivar,i,j),ivar=1,nvar)
+            write(outunit,545) i,j,(q(ivar,i,j),ivar=1,nvar),
+     .                         (aux(iaux,i,j),iaux=1,maux)
 c            write(*,545) i,j,(q(ivar,i,j),ivar=1,nvar)
- 545        format(2i4,4e15.7)
+ 545        format(2i4,7e15.7)
          end do
          end do
       endif
@@ -222,8 +223,8 @@ c
 c            
         mptr_level = node(nestlevel,mptr)
 
-        write(outunit,811) mptr, mptr_level, cflgrid
- 811    format(" Courant # of grid ",i5," level",i3," is ",d12.4)
+c       write(outunit,811) mptr, mptr_level, cflgrid
+c811    format(" Courant # of grid ",i5," level",i3," is ",d12.4)
 c
 
 !$OMP  CRITICAL (cflm)

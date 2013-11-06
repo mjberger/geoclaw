@@ -199,7 +199,7 @@ c
 c         call conck(1,nvar,naux,time,rest)
 c         call outtre(lstart(lbase+1),.true.,nvar,naux)
 c note negative time to signal regridding output in plots
-c         call valout(lbase,lfine,-tlevel(lbase),nvar,naux)
+          call valout(lbase,lfine,-tlevel(lbase),nvar,naux)
 c
 c  maybe finest level in existence has changed. reset counters.
 c
@@ -247,7 +247,7 @@ c         # rjl & mjb changed to cfl_level, 3/17/10
 
 
 c        # to debug individual grid updates...
-c        call valout(level,level,time,nvar,naux)
+         call valout(level,level,time,nvar,naux)
 c
 c done with a level of integration. update counts, decide who next.
 c

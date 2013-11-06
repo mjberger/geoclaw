@@ -69,11 +69,11 @@ subroutine setauxCopy(mbc,mx,my,xlow,ylow,dx,dy,maux,aux,auxflags)
         end forall
     endif
     
-    do j=1-mbc,my+mbc
+    do 11  j=1-mbc,my+mbc
         ym = ylow + (j - 1.d0) * dy
         y = ylow + (j - 0.5d0) * dy
         yp = ylow + real(j,kind=8) * dy
-        do i=1-mbc,mx+mbc
+        do 9 i=1-mbc,mx+mbc
             if (auxflags(i,j) .ne. 0) cycle
             xm = xlow + (i - 1.d0) * dx
             x = xlow + (i - 0.5d0) * dx
@@ -95,8 +95,8 @@ subroutine setauxCopy(mbc,mx,my,xlow,ylow,dx,dy,maux,aux,auxflags)
                 
                     aux(1,i,j) = topo_integral / (dx * dy * aux(2,i,j))
             endif
-        enddo
-    enddo
+  9    continue
+ 11  continue
 
     ! Set friction coefficient based on a set of depth levels
     call set_friction_fieldCopy(mx,my,mbc,maux,xlow,ylow,dx,dy,aux,auxflags)

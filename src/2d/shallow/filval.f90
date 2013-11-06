@@ -17,6 +17,7 @@ subroutine filval(val, mitot, mjtot, dx, dy, level, time,  mic, &
 
     use amr_module, only: xlower, ylower, intratx, intraty, nghost, xperdom
     use amr_module, only: yperdom, spheredom, xupper, yupper, alloc
+    use amr_module, only: outunit
 
     use geoclaw_module, only: dry_tolerance, sea_level
     use refinement_module, only: varRefTime
@@ -43,6 +44,7 @@ subroutine filval(val, mitot, mjtot, dx, dy, level, time,  mic, &
     logical :: fineflag(3)
     integer(kind=1) ::  auxflags(mitot,mjtot)   
     real(kind=8) :: fliparray((mitot+mjtot)*(nvar+naux))
+    integer iv
 
     ! External function definitions
     real(kind=8) :: get_max_speed
@@ -83,6 +85,23 @@ subroutine filval(val, mitot, mjtot, dx, dy, level, time,  mic, &
     call bc2amr(valc,auxc,mic,mjc,nvar,naux,dx_coarse,dy_coarse,level - 1,time,xl,xr,yb, &
                 yt,xlower,ylower,xupper,yupper,xperdom,yperdom,spheredom)
 
+
+!  NOTE change in order of code.  Since the interp from coarse to fine needs the aux
+!       arrays set already, the fine copy is done first, to set up the aux arrays.
+!       we can do this since we have the flag array to test where to overwrite.
+
+!  SO this is no longer overwriting but setting for the first time.
+! overwrite interpolated values with fine grid values, if available.
+!!$    call intcopy(val,mitot,mjtot,nvar,ilo-nghost,ihi+nghost,jlo-nghost, &
+!!$                 jhi+nghost,level,1,1)              
+!! also might need preicallCopy???
+       call icallCopy(val,aux,mitot,mjtot,nvar,naux,ilo-nghost,ihi+nghost,  &
+                      jlo-nghost,jhi+nghost,level,1,1,auxflags,mptr)   
+
+!      set remaining aux arrays values not  set by copying from prev existing grids
+       call setauxCopy(nghost,mitot-2*nghost,mjtot-2*nghost,xleft,ybot,dx,dy,naux,aux,auxflags)
+
+  
     !-----------------------------
     ! For shallow water over topograpdy, in coarse cells convert from h to eta,
     ! before interpolating:
@@ -125,16 +144,20 @@ subroutine filval(val, mitot, mjtot, dx, dy, level, time,  mic, &
                     xoff = (real(ico,kind=8) - 0.5d0) / refinement_ratio_x - 0.5d0
                     jfine = (j-2) * refinement_ratio_y + nghost + jco
                     ifine = (i-2) * refinement_ratio_x + nghost + ico
-                    val(1,ifine,jfine) = (coarseval(2) + xoff * slopex &
-                                                       + yoff * slopey)
-                    val(1,ifine,jfine) = max(0.d0, val(1,ifine,jfine) &
-                                            - aux(1,ifine,jfine))
-                    finemass = finemass + val(1,ifine,jfine)
-                    if (val(1,ifine,jfine) <= dry_tolerance) then
-                        fineflag(1) = .true.
-                        val(2,ifine,jfine) = 0.d0
-                        val(3,ifine,jfine) = 0.d0
+                    if (auxflags(ifine,jfine) .eq. 0) then
+                       val(1,ifine,jfine) = (coarseval(2) + xoff * slopex &
+                            + yoff * slopey)
+                       val(1,ifine,jfine) = max(0.d0, val(1,ifine,jfine)  &
+                            - aux(1,ifine,jfine))
+                       finemass = finemass + val(1,ifine,jfine)
+                       if (val(1,ifine,jfine) <= dry_tolerance) then
+                          fineflag(1) = .true.
+                          if (auxflags(ifine,jfine) .eq. 0) then
+                             val(2,ifine,jfine) = 0.d0
+                             val(3,ifine,jfine) = 0.d0
+                          endif
                     end if
+                    endif
                 end do
             end do
 
@@ -194,7 +217,9 @@ subroutine filval(val, mitot, mjtot, dx, dy, level, time,  mic, &
                                 fineflag(ivar) = .true.
                                 exit
                             else
-                                val(ivar,ifine,jfine) = hvf
+                               if (auxflags(ifine,jfine) .eq. 0) then
+                                   val(ivar,ifine,jfine) = hvf
+                               endif
                             endif
                         enddo
                     enddo
@@ -211,7 +236,9 @@ subroutine filval(val, mitot, mjtot, dx, dy, level, time,  mic, &
                             do jco = 1,refinement_ratio_y
                                 jfine = (j-2) * refinement_ratio_y + nghost + jco
                                 ifine = (i-2) * refinement_ratio_x + nghost + ico
-                                val(ivar,ifine,jfine) = Vnew * val(1,ifine,jfine)
+                                if (auxflags(ifine,jfine) .eq. 0) then
+                                   val(ivar,ifine,jfine) = Vnew * val(1,ifine,jfine)
+                                endif
                             enddo
                         enddo
                     endif
@@ -222,17 +249,7 @@ subroutine filval(val, mitot, mjtot, dx, dy, level, time,  mic, &
         enddo !end of coarse loop
     enddo !end of coarse loop
 
-    ! overwrite interpolated values with fine grid values, if available.
-!!$    call intcopy(val,mitot,mjtot,nvar,ilo-nghost,ihi+nghost,jlo-nghost, &
-!!$                 jhi+nghost,level,1,1)              
-!! also might need preicallCopy???
-       call icallCopy(val,aux,mitot,mjtot,nvar,naux,ilo,ihi,jlo, &                    
-                  jhi,level,1+nghost,1+nghost,auxflags,mptr)   
-
-!      set remaining aux arrays values not  set by copying from prev existing grids
-       call setauxCopy(nghost,mitot,mjtot,xleft,ybot,dx,dy,naux,aux,auxflags)
-
-    ! scan for max wave speed on newly created grid. this will be used to set appropriate
+  ! scan for max wave speed on newly created grid. this will be used to set appropriate
     ! time step and appropriate refinement in time. For this app not nec to refine by same
     ! amount as refinement in space since refinement at shores where h is shallow has lower
     ! speeds.

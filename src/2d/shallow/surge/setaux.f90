@@ -33,7 +33,7 @@ subroutine setaux(mbc,mx,my,xlow,ylow,dx,dy,maux,aux)
     real(kind=8), intent(inout) :: aux(maux,1-mbc:mx+mbc,1-mbc:my+mbc)
     
     ! Locals
-    integer :: i,j,m
+    integer :: i,j,m, ii,jj
     real(kind=8) :: x,y,xm,ym,xp,yp,topo_integral
     character(len=*), parameter :: aux_format = "(2i4,4d15.3)"
     
@@ -67,19 +67,21 @@ subroutine setaux(mbc,mx,my,xlow,ylow,dx,dy,maux,aux)
         end forall
     endif
     
-    do j=1-mbc,my+mbc
+    do 10 jj=1-mbc,my+mbc
+        j = jj
         ym = ylow + (j - 1.d0) * dy
         y = ylow + (j - 0.5d0) * dy
         yp = ylow + real(j,kind=8) * dy
-        do i=1-mbc,mx+mbc
+        do 11  ii=1-mbc,mx+mbc
+            i = ii
             xm = xlow + (i - 1.d0) * dx
             x = xlow + (i - 0.5d0) * dx
             xp = xlow + real(i,kind=8) * dx
             
             ! Set lat-long cell info
             if (coordinate_system == 2) then
-                aux(2,i,j) = deg2rad * earth_radius**2 * (sin(yp * deg2rad) - sin(ym * deg2rad)) / dy
-                aux(3,i,j) = ym * deg2rad
+                aux(2,ii,jj) = deg2rad * earth_radius**2 * (sin(yp * deg2rad) - sin(ym * deg2rad)) / dy
+                aux(3,ii,jj) = ym * deg2rad
             endif
             
             ! Use input topography files if available
@@ -90,10 +92,10 @@ subroutine setaux(mbc,mx,my,xlow,ylow,dx,dy,maux,aux)
                     mxtopo,mytopo,mtopo,i0topo,mtopoorder, &
                     mtopofiles,mtoposize,topowork)
                 
-                    aux(1,i,j) = topo_integral / (dx * dy * aux(2,i,j))
+                    aux(1,ii,jj) = topo_integral / (dx * dy * aux(2,ii,jj))
             endif
-        enddo
-    enddo
+ 11    continue
+ 10   continue
 
     ! Set friction coefficient based on a set of depth levels
     call set_friction_field(mx,my,mbc,maux,xlow,ylow,dx,dy,aux)
