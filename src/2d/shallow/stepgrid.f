@@ -26,6 +26,7 @@ c      This version of stepgrid, stepgrid_geo.f allows output on
 c      fixed grids specified in setfixedgrids.data
 c :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 
+      use storm_module, only: set_storm_fields
       use geoclaw_module
       use amr_module
       use fixedgrids_module
@@ -153,8 +154,11 @@ c               # test if arrival times should be output
 !$OMP END CRITICAL (FixedGrids)
 c::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 
-       call b4step2(mbc,mx,my,nvar,q,
-     &             xlowmbc,ylowmbc,dx,dy,time,dt,maux,aux)
+c       call b4step2(mbc,mx,my,nvar,q,
+c     &             xlowmbc,ylowmbc,dx,dy,time,dt,maux,aux)
+       call set_storm_fields(maux,mbc,mx,my,xlowmbc,ylowmbc,
+     .                       dx,dy,time,aux)
+
       
 c::::::::::::::::::::::::FIXED GRID DATA before step:::::::::::::::::::::::
 c     # fill in values at fixed grid points effected at time tc0
@@ -238,29 +242,34 @@ c
 c       # update q
         dtdx = dt/dx
         dtdy = dt/dy
-        do 50 j=mbc+1,mjtot-mbc
-        do 50 i=mbc+1,mitot-mbc
-        do 50 m=1,nvar
-         if (mcapa.eq.0) then
+        if (mcapa.eq.0) then
+          do 50 j=mbc+1,mjtot-mbc
+          do 50 i=mbc+1,mitot-mbc
+          do 50 m=1,nvar
 c
 c            # no capa array.  Standard flux differencing:
 
-           q(m,i,j) = q(m,i,j)
-     &           - dtdx * (fm(m,i+1,j) - fp(m,i,j))
-     &           - dtdy * (gm(m,i,j+1) - gp(m,i,j))
-         else
+            q(m,i,j) = q(m,i,j)
+     &            - dtdx * (fm(m,i+1,j) - fp(m,i,j))
+     &            - dtdy * (gm(m,i,j+1) - gp(m,i,j))
+ 50       continue
+        else
+          do 51 j=mbc+1,mjtot-mbc
+          do 51 i=mbc+1,mitot-mbc
+          do 51 m=1,nvar
 c            # with capa array.
            q(m,i,j) = q(m,i,j)
      &           - (dtdx * (fm(m,i+1,j) - fp(m,i,j))
      &           +  dtdy * (gm(m,i,j+1) - gp(m,i,j))) / aux(mcapa,i,j)
+ 51       continue
 !           write(outunit,543) m,i,j,q(m,i,j),fm(m,i+1,j),fp(m,i,j),
 !     .        gm(m,i,j+1), gp(m,i,j)
 543       format(3i4,5e25.16)
 
          endif
 
- 50      continue
-c
+c 50      continue
+c 
 c     # Copied here from b4step2 since need to do before saving to qc1d:
       forall(i=1:mitot, j=1:mjtot, q(1,i,j) < dry_tolerance)
         q(1,i,j) = max(q(1,i,j),0.d0)

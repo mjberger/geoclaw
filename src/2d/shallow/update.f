@@ -138,7 +138,7 @@ c     and is never increased given an increase in mass
          capac=1.0d0
       else
          capac=alloc(iaddcaux(i,j))
-         endif
+      endif
 
       bc = alloc(iaddctopo(i,j))
 
@@ -169,14 +169,14 @@ c     and is never increased given an increase in mass
                etaf = 0.d0
                huf=0.d0
                hvf=0.d0
-               endif
+            endif
 
-               hsum   = hsum + hf
-               husum  = husum + huf
-               hvsum  = hvsum + hvf
-               etasum = etasum + etaf
-            enddo
+            hsum   = hsum + hf
+            husum  = husum + huf
+            hvsum  = hvsum + hvf
+            etasum = etasum + etaf
          enddo
+      enddo
 
       if (nwet.gt.0) then
          etaav=etasum/dble(nwet)
@@ -189,7 +189,7 @@ c     and is never increased given an increase in mass
          hc=0.d0
          huc=0.d0
          hvc=0.d0
-         endif
+      endif
 
 c     # set h on coarse grid based on surface, not conservative near shoreline
       alloc(iadd(1,i,j)) = hc / capac 

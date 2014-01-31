@@ -12,7 +12,7 @@
 ! ------------------------------------------------------------------
 subroutine filval(val, mitot, mjtot, dx, dy, level, time,  mic, &
                   mjc, xleft, xright, ybot, ytop, nvar, mptr, ilo, ihi, &
-                  jlo, jhi, aux, naux,  sp_over_h)
+                  jlo, jhi, aux, naux,  sp_over_h, thisSetauxTime)
 !!                  jlo, jhi, aux, naux, locflip, sp_over_h)
 
     use amr_module, only: xlower, ylower, intratx, intraty, nghost, xperdom
@@ -33,6 +33,7 @@ subroutine filval(val, mitot, mjtot, dx, dy, level, time,  mic, &
     ! Output
     real(kind=8), intent(in out) :: sp_over_h
     real(kind=8), intent(in out) :: val(nvar,mitot,mjtot), aux(naux,mitot,mjtot)
+    integer, intent (out) ::  thisSetauxTime
 
     ! Local storage
     real(kind=8) :: valc(nvar,mic,mjc), auxc(naux,mic,mjc)
@@ -44,7 +45,8 @@ subroutine filval(val, mitot, mjtot, dx, dy, level, time,  mic, &
     logical :: fineflag(3)
     integer(kind=1) ::  auxflags(mitot,mjtot)   
     real(kind=8) :: fliparray((mitot+mjtot)*(nvar+naux))
-    integer iv
+    integer  :: clock_start, clock_finish, clock_rate
+    integer :: sgn
 
     ! External function definitions
     real(kind=8) :: get_max_speed
@@ -99,8 +101,10 @@ subroutine filval(val, mitot, mjtot, dx, dy, level, time,  mic, &
                       jlo-nghost,jhi+nghost,level,1,1,auxflags,mptr)   
 
 !      set remaining aux arrays values not  set by copying from prev existing grids
+       call system_clock(clock_start,clock_rate)
        call setauxCopy(nghost,mitot-2*nghost,mjtot-2*nghost,xleft,ybot,dx,dy,naux,aux,auxflags)
-
+       call system_clock(clock_finish,clock_rate)
+       thisSetauxTime = thisSetauxTime + clock_finish - clock_start
   
     !-----------------------------
     ! For shallow water over topograpdy, in coarse cells convert from h to eta,
@@ -138,8 +142,8 @@ subroutine filval(val, mitot, mjtot, dx, dy, level, time,  mic, &
 
             ! Interpolate from coarse cells to fine grid to find depth
             finemass = 0.d0
-            do ico = 1,refinement_ratio_x
-                do jco = 1,refinement_ratio_y
+            do jco = 1,refinement_ratio_y
+               do ico = 1,refinement_ratio_x
                     yoff = (real(jco,kind=8) - 0.5d0) / refinement_ratio_y - 0.5d0
                     xoff = (real(ico,kind=8) - 0.5d0) / refinement_ratio_x - 0.5d0
                     jfine = (j-2) * refinement_ratio_y + nghost + jco
@@ -232,8 +236,8 @@ subroutine filval(val, mitot, mjtot, dx, dy, level, time,  mic, &
                         dividemass = max(finemass,valc(1,i,j))
                         Vnew = area * valc(ivar,i,j) / (dividemass)
 
-                        do ico = 1,refinement_ratio_x
-                            do jco = 1,refinement_ratio_y
+                        do jco = 1,refinement_ratio_y
+                            do ico = 1,refinement_ratio_x
                                 jfine = (j-2) * refinement_ratio_y + nghost + jco
                                 ifine = (i-2) * refinement_ratio_x + nghost + ico
                                 if (auxflags(ifine,jfine) .eq. 0) then

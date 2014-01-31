@@ -120,8 +120,8 @@ c     -----------------------------
 c
 
       do 30 jside=1,2
-         do 20 m=1,meqn
-            do 10 i = 1-mbc, mx+mbc
+        do 20 i = 1-mbc, mx+mbc
+          do 10 m=1,meqn
                faddm(m,i) = 0.d0
                faddp(m,i) = 0.d0
                gaddm(m,i,jside) = 0.d0

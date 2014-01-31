@@ -58,7 +58,7 @@ SOURCES = \
   $(CLAW)/riemann/src/geoclaw_riemann_utils.f \
   $(GEOLIB)/src2.f90 \
   $(GEOLIB)/src1d.f90 \
-  $(GEOLIB)/step2.f90 \
+  $(GEOLIB)/step2_sweep.f90 \
   $(GEOLIB)/flux2fw.f \
   $(GEOLIB)/qad.f \
   $(GEOLIB)/valout.f \
@@ -71,6 +71,7 @@ SOURCES = \
   $(GEOLIB)/bc2amr.f \
   $(GEOLIB)/update.f \
   $(GEOLIB)/setaux.f90 \
+  ./setauxCopy.f90 \
   $(GEOLIB)/flag2refine2.f90  \
   $(AMRLIB)/flagregions2.f90  \
   $(GEOLIB)/allowflag.f90  \
@@ -160,6 +161,7 @@ SOURCES = \
   $(AMRLIB)/intcopy.f \
   $(AMRLIB)/preintcopy.f \
   $(AMRLIB)/icall.f \
+  $(AMRLIB)/icallCopy.f \
   $(AMRLIB)/preicall.f \
   $(AMRLIB)/inlinelimiter.f \
   $(AMRLIB)/cstore.f \

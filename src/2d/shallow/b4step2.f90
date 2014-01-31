@@ -13,7 +13,7 @@ subroutine b4step2(mbc,mx,my,meqn,q,xlower,ylower,dx,dy,t,dt,maux,aux)
 ! Also calls movetopo if topography might be moving.
 
     use geoclaw_module, only: dry_tolerance
-    use geoclaw_module, only: g => grav
+    use geoclaw_module, only: g => grav 
     use topo_module
     use dtopo_module
     

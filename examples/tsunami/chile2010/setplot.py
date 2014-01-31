@@ -33,7 +33,7 @@ def setplot(plotdata):
     from numpy import linspace
 
     plotdata.clearfigures()  # clear any old figures,axes,items data
-    plotdata.format = 'binary'
+    plotdata.format = 'ascii'
 
 
 

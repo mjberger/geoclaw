@@ -15,6 +15,7 @@ c
       integer newnumgrids(maxlv),listnewgrids(maxnumnewgrids)
 
       integer clock_start, clock_finish, clock_rate
+      integer wallclock_start, wallclock_finish
       logical mjb
       integer mbad
 c
@@ -86,19 +87,23 @@ c   first get space, since cant do that part in parallel
 
 c   
 c                 other reduction variables initialized in stst1
-                  this_spoh = 0.d0
+       this_spoh = 0.d0
+       call system_clock(wallclock_start,clock_rate)  
+
 !$OMP PARALLEL DO 
 !$OMP&            PRIVATE(clock_start,clock_finish,clock_rate)
 !$OMP&            PRIVATE(j,mptr,nx,ny,mitot,mjtot,corn1,corn2,loc)
 !$OMP&            PRIVATE(locaux,time,mic,mjc,xl,xr,yb,yt,ilo,ihi)
-!$OMP&            PRIVATE(jlo,jhi,iperim,sp_over_h)
+!$OMP&            PRIVATE(jlo,jhi,iperim,sp_over_h,thisSetauxTime)
 !$OMP&            SHARED(newnumgrids,listnewgrids,nghost,node,hx,hy)
 !$OMP&            SHARED(rnode,intratx,intraty,lcheck,nvar,alloc,naux)
 !$OMP&            REDUCTION(MAX:this_spoh)
-!$OMP&            REDUCTION(+:timeSetaux)
 !$OMP&            REDUCTION(+:timeFilval)
 !$OMP&            SCHEDULE(dynamic,1)
 !$OMP&            DEFAULT(none)
+
+! $OMP&            REDUCTION(+:timeSetaux)
+
       do  j = 1, newnumgrids(lcheck)
           mptr = listnewgrids(j)
 
@@ -168,10 +173,10 @@ c         ## memory would have changed the alloc location
      2                 xl,xr,yb,yt,nvar,
      3                 mptr,ilo,ihi,jlo,jhi,
      4                 alloc(locaux),naux,
-     5                 sp_over_h)
-!!     4                 alloc(locaux),naux,locflip,
+     5                 sp_over_h,thisSetauxTime)
            call system_clock(clock_finish,clock_rate)
            timeFilval = timeFilval + clock_finish - clock_start
+!           timeSetaux = thisSetauxTime
            this_spoh = max(this_spoh, sp_over_h)
  
 !           call reclam(ivalc,mic*mjc*(nvar+naux))
@@ -182,6 +187,10 @@ c         ## memory would have changed the alloc location
 !           go to 10
         end do
 !$OMP END PARALLEL DO
+
+       call system_clock(wallclock_finish,clock_rate)  
+       timeFilvalTot = timeFilvalTot + wallclock_finish-wallclock_start
+
        spoh(lcheck) = this_spoh
 
 

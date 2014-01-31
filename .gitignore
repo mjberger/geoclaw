@@ -1,8 +1,7 @@
 *.pyc
 *.o
 *.mod
-*.data
-.output
+.ouput
 .data
 .plots
 xclaw
@@ -11,8 +10,6 @@ xgeoclaw
 *.html
 _output/
 _plots/
+fort.*
 *~
-*.asc
-*.tt3
-*.tt1
-*.xyz
+.gitignore

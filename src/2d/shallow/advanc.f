@@ -13,6 +13,7 @@ c
       integer mythread/0/, maxthreads/1/
       integer listgrids(numgrids(level))
       integer clock_start, clock_finish, clock_rate
+      integer clock_startStepgrid, clock_finishBound
 
 c     maxgr is maximum number of grids  many things are
 c     dimensioned at, so this is overall. only 1d array
@@ -62,7 +63,9 @@ c
 
         end do
 !$OMP END PARALLEL DO
-
+      call system_clock(clock_finishBound,clock_rate)
+      timeBound = timeBound + clock_finishBound - clock_start  
+    
 c
 c save coarse level values if there is a finer level for wave fixup
       if (level+1 .le. mxnest) then
@@ -77,6 +80,8 @@ c      call fgrid_advance(time,delt)
       dtlevnew = rinfinity
       cfl_level = 0.d0    !# to keep track of max cfl seen on each level
 c 
+      call system_clock(clock_startStepgrid,clock_rate)
+
 c  set number of thrad to use. later will base on number of grids
 c     nt = 4
 c   ! $OMP PARALLEL DO num_threads(nt)
@@ -106,6 +111,7 @@ c
 c
       call system_clock(clock_finish,clock_rate)
       tvoll(level) = tvoll(level) + clock_finish - clock_start
+      timeStepgrid = timeStepgrid +clock_finish-clock_startStepgrid
 
 c
       return
