@@ -78,17 +78,77 @@ subroutine setaux(mbc,mx,my,xlow,ylow,dx,dy,maux,aux)
                 
                     aux(1,i,j) = topo_integral / (dx * dy * aux(2,i,j))
             endif
-           if (i .eq. 13 .and. j .eq. 2) then
-               write(*,*) " in setaux (2)  with i,j = ",i,j
-               write(*,*)(aux(iv,i,j),iv=1,maux)
-               write(*,*) topo_integral,dx,dy
-            endif
-      end do
-   end do 
+        enddo
+    enddo
 
-    ! Output for debugging
-    if (.false.) then
-        open(23, file='fort.aux',status='unknown',form='formatted')
+    ! Copy topo to ghost cells if outside physical domain
+
+    do j=1-mbc,my+mbc
+        y = ylow + (j-0.5d0) * dy
+        if (y < ylower) then
+            do i=1-mbc,mx+mbc
+                x = xlow + (i-0.5d0) * dx 
+                iint = i + max(0, ceiling((xlower-x)/dx)) &
+                         - max(0, ceiling((x-xupper)/dx))
+                jint = j + max(0, ceiling((ylower-y)/dy)) &
+                         - max(0, ceiling((y-yupper)/dy))
+                aux(1,i,j) = aux(1,iint,jint)
+            enddo
+         else        
+            exit
+        endif
+    enddo
+
+    do j=my+mbc, 1-mbc, -1
+        y = ylow + (j-0.5d0) * dy
+        if (y > yupper) then
+            do i=1-mbc,mx+mbc
+                x = xlow + (i-0.5d0) * dx 
+                iint = i + max(0, ceiling((xlower-x)/dx)) &
+                         - max(0, ceiling((x-xupper)/dx))
+                jint = j + max(0, ceiling((ylower-y)/dy)) &
+                         - max(0, ceiling((y-yupper)/dy))
+                aux(1,i,j) = aux(1,iint,jint)
+            enddo
+        else
+          exit
+        endif
+    enddo
+
+    do i=1-mbc,mx+mbc
+        x = xlow + (i-0.5d0) * dx
+        if (x < xlower) then
+            do j=1-mbc,my+mbc
+                y = ylow + (j-0.5d0) * dy 
+                iint = i + max(0, ceiling((xlower-x)/dx)) &
+                         - max(0, ceiling((x-xupper)/dx))
+                jint = j + max(0, ceiling((ylower-y)/dy)) &
+                         - max(0, ceiling((y-yupper)/dy))
+                aux(1,i,j) = aux(1,iint,jint)
+            enddo
+        else
+          exit
+        endif
+    enddo
+
+    do i=mx+mbc, 1-mbc, -1
+        x = xlow + (i-0.5d0) * dx
+        if (x > xupper) then
+            do j=1-mbc,my+mbc
+                y = ylow + (j-0.5d0) * dy 
+                iint = i + max(0, ceiling((xlower-x)/dx)) &
+                         - max(0, ceiling((x-xupper)/dx))
+                jint = j + max(0, ceiling((ylower-y)/dy)) &
+                         - max(0, ceiling((y-yupper)/dy))
+                aux(1,i,j) = aux(1,iint,jint)
+            enddo
+        else
+          exit
+        endif
+    enddo
+
+    ! Output for debugging to fort.23
+    if (.true.) then
         print *,'Writing out aux arrays'
         print *,' '
         do j=1,my

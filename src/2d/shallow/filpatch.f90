@@ -73,6 +73,8 @@ recursive subroutine filrecur(level,num_eqn,valbig,aux,num_aux,t,mx,my, &
     real(kind=8) ::   slope(2, ihi-ilo + 2, jhi-jlo + 2)
     integer ::   fine_cell_count(ihi-ilo+2, jhi-jlo + 2)
 
+    integer :: nghost_patch
+
     ! Stack storage
     !  use stack-based scratch arrays instead of alloc, since dont really
     !  need to save beyond these routines, and to allow dynami_coarse memory resizing
@@ -200,6 +202,20 @@ recursive subroutine filrecur(level,num_eqn,valbig,aux,num_aux,t,mx,my, &
             call system_clock(clock_start,clock_rate)
             call setaux(nghost, mx_coarse - 2*nghost,my_coarse - 2*nghost, &
                         xlow_coarse + nghost * dx_coarse,ylow_coarse + nghost * dy_coarse, &
+            ! update topography if needed
+            !if ((num_dtopo>0).and.(topo_finalized.eqv..false.)) then
+            !   if ((minval(topotime)<maxval(tfdtopo)).and.(t>=minval(t0dtopo))) then
+            if (.not. topo_finalized) then
+                call topo_update(t)
+                endif
+
+!!$            call setaux(nghost, mx_coarse - 2*nghost,my_coarse - 2*nghost, &
+!!$                        coarse_rect(1) + nghost * dx_coarse,coarse_rect(3) + nghost * dy_coarse, &
+!!$                        dx_coarse,dy_coarse,num_aux,auxcrse)
+
+            nghost_patch = 0                           
+            call setaux(nghost_patch, mx_coarse, my_coarse,       &
+                        coarse_rect(1), coarse_rect(3),           &
                         dx_coarse,dy_coarse,num_aux,auxcrse)
             call system_clock(clock_finish,clock_rate)
             clock_dif = clock_finish - clock_start
