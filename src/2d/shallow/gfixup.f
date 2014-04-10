@@ -50,14 +50,12 @@ c
           go to 2
  3        level   = level + 1
           go to 1
-c
-c update topo to current time, before setting all new grids at new levels
-c
-
 
  4    lcheck = lbase + 1
 
-
+c
+c update topo to current time, before setting all new grids at new levels
+c
       time = rnode(timemult, lstart(lbase))
       if (.not. topo_finalized) then
           call topo_update(time)
@@ -128,7 +126,6 @@ c  can only do this after topo stops moving
               else
                 locaux = 1
               endif
-
 c
 c      We now fill in the values for grid mptr using filval. It uses
 c      piecewise linear interpolation to obtain values from the

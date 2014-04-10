@@ -17,7 +17,6 @@ subroutine filval(val, mitot, mjtot, dx, dy, level, time,  mic, &
     use amr_module, only: xlower, ylower, intratx, intraty, nghost, xperdom
     use amr_module, only: yperdom, spheredom, xupper, yupper, alloc
     use amr_module, only: outunit, NEEDS_TO_BE_SET
-    use amr_module
 
     use topo_module, only: aux_finalized
     use geoclaw_module, only: dry_tolerance, sea_level
@@ -82,12 +81,14 @@ subroutine filval(val, mitot, mjtot, dx, dy, level, time,  mic, &
         endif
     else  
         ! intersect grids and copy all (soln and aux)
+        auxc(1,:,:) = NEEDS_TO_BE_SET
         if (xperdom .or. yperdom .or. spheredom) then
             call preicall(valc,auxc,mic,mjc,nvar,naux,iclo,ichi,jclo,jchi, &
                           level-1,fliparray)
         else
             call icall(valc,auxc,mic,mjc,nvar,naux,iclo,ichi,jclo,jchi,level-1,1,1)
         endif
+ 
         if (aux_finalized .lt. 2) then ! coarse topo was at wrong time. redo
            ! no ghost cells on coarse enlarged patch
            auxc(1,:,:) = NEEDS_TO_BE_SET  ! needs signal for setaux, set everywhere
@@ -104,9 +105,8 @@ subroutine filval(val, mitot, mjtot, dx, dy, level, time,  mic, &
 
 !  SO this is no longer overwriting but setting for the first time.
 ! overwrite interpolated values with fine grid values, if available.
-! can only do this if topo stoped moving, otherwise fine grid
+! can only do this if topo stopped moving, otherwise fine grid
 ! topo is at previous time step.
-!! also might need preicallCopy???
 
        nx = mitot - 2*nghost
        ny = mjtot - 2*nghost
