@@ -55,7 +55,7 @@ c
          do j = 1, mjtot
             write(outunit,545) i,j,(q(ivar,i,j),ivar=1,nvar),
      .                         (aux(iaux,i,j),iaux=1,maux)
- 545        format(2i4,4e15.7,/,8x,4e15.7)
+ 545        format(2i4,4e26.16,/,8x,4e26.16)
          end do
          end do
       endif

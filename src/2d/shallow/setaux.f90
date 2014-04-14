@@ -26,7 +26,7 @@ subroutine setaux(mbc,mx,my,xlow,ylow,dx,dy,maux,aux)
     real(kind=8), intent(inout) :: aux(maux,1-mbc:mx+mbc,1-mbc:my+mbc)
     
     ! Locals
-    integer :: ii,jj,m, iint,jint
+    integer :: i,j,m, iint,jint
     real(kind=8) :: x,y,xm,ym,xp,yp,topo_integral
     character(len=*), parameter :: aux_format = "(2i4,4d15.3)"
     integer :: skipcount,iaux,ilo,jlo
@@ -48,9 +48,9 @@ subroutine setaux(mbc,mx,my,xlow,ylow,dx,dy,maux,aux)
 
     ! Set analytical bathymetry here if requested
     if (test_topography > 0) then
-        forall (ii=1-mbc:mx+mbc,jj=1-mbc:my+mbc)
-            aux(1,ii,jj) = test_topo(xlow + (ii - 0.5d0) * dx,       &
-                                     ylow + (jj - 0.5d0) * dy)
+        forall (i=1-mbc:mx+mbc,j=1-mbc:my+mbc)
+            aux(1,i,j) = test_topo(xlow + (i - 0.5d0) * dx,       &
+                                     ylow + (j - 0.5d0) * dy)
         end forall
     endif
 
@@ -61,36 +61,36 @@ subroutine setaux(mbc,mx,my,xlow,ylow,dx,dy,maux,aux)
 
     ! Set bathymetry
     skipcount = 0
-    do jj=1-mbc,my+mbc
-        !ym = ylow + (jj - 1.d0) * dy
-        !y = ylow + (jj - 0.5d0) * dy
-        !yp = ylow + real(jj,kind=8) * dy
+    do j=1-mbc,my+mbc
+        !ym = ylow + (j - 1.d0) * dy
+        !y = ylow + (j - 0.5d0) * dy
+        !yp = ylow + real(j,kind=8) * dy
 
-        ym = ylower + (jlo+jj-1.d0) * dy
-        yp = ylower + (jlo+jj) * dy
+        ym = ylower + (jlo+j-1.d0) * dy
+        yp = ylower + (jlo+j) * dy
         y = .5*(ym+yp)
 
 
-        do ii=1-mbc,mx+mbc
-            !xm = xlow + (ii - 1.d0) * dx
-            !x  = xlow + (ii - 0.5d0) * dx
-            !xp = xlow + real(ii,kind=8) * dx
+        do i=1-mbc,mx+mbc
+            !xm = xlow + (i - 1.d0) * dx
+            !x  = xlow + (i - 0.5d0) * dx
+            !xp = xlow + real(i,kind=8) * dx
 
-          xm = xlower + (ilo+ii-1.d0) * dx
-          xp = xlower + (ilo+ii) * dx
+          xm = xlower + (ilo+i-1.d0) * dx
+          xp = xlower + (ilo+i) * dx
           x = .5*(xm+xp)
 
 
-            !write(*,444)ii,jj,aux(1,ii,jj)
+            !write(*,444)i,j,aux(1,i,j)
 444         format("in setaux ",2i4,e12.5)
 
             ! Set lat-long cell info
             if (coordinate_system == 2) then
-                aux(2,ii,jj) = deg2rad * earth_radius**2 * (sin(yp * deg2rad) - sin(ym * deg2rad)) / dy
-                aux(3,ii,jj) = ym * deg2rad
+                aux(2,i,j) = deg2rad * earth_radius**2 * (sin(yp * deg2rad) - sin(ym * deg2rad)) / dy
+                aux(3,i,j) = ym * deg2rad
             endif
 
-            ! skip setting aux(1,ii,jj) in ghost cell if outside physical domain
+            ! skip setting aux(1,i,j) in ghost cell if outside physical domain
             ! since topo files may not cover ghost cell, and values
             ! should be extrapolated, which is done in next set of loops.
             if ((y>yupper) .or. (y<ylower) .or. &
@@ -98,7 +98,7 @@ subroutine setaux(mbc,mx,my,xlow,ylow,dx,dy,maux,aux)
 
 !           ### parameter NEEDS_TO_BE_SET initialized in amr_module.f90
 !           ### saves time by otherwise copying instead of reinitializing
-            if (aux(1,ii,jj) .ne. NEEDS_TO_BE_SET) then
+            if (aux(1,i,j) .ne. NEEDS_TO_BE_SET) then
                skipcount = skipcount + 1
                cycle  ! new system copies bathy where possible
             endif
@@ -112,7 +112,7 @@ subroutine setaux(mbc,mx,my,xlow,ylow,dx,dy,maux,aux)
                     mxtopo,mytopo,mtopo,i0topo,mtopoorder, &
                     mtopofiles,mtoposize,topowork)
 
-                    aux(1,ii,jj) = topo_integral / (dx * dy * aux(2,ii,jj))
+                    aux(1,i,j) = topo_integral / (dx * dy * aux(2,i,j))
             endif
         enddo
     enddo
@@ -120,31 +120,31 @@ subroutine setaux(mbc,mx,my,xlow,ylow,dx,dy,maux,aux)
 
     ! Copy topo to ghost cells if outside physical domain
 
-    do jj=1-mbc,my+mbc
-        y = ylower + (jlo+jj-.5d0) * dy
+    do j=1-mbc,my+mbc
+        y = ylower + (jlo+j-.5d0) * dy
         if ((y < ylower) .or. (y>yupper)) then
-            do ii=1-mbc,mx+mbc
-                x = xlower + (ilo+ii-.5d0) * dx
-                iint = ii + max(0, ceiling((xlower-x)/dx)) &
+            do i=1-mbc,mx+mbc
+                x = xlower + (ilo+i-.5d0) * dx
+                iint = i + max(0, ceiling((xlower-x)/dx)) &
                           - max(0, ceiling((x-xupper)/dx))
-                jint = jj + max(0, ceiling((ylower-y)/dy)) &
+                jint = j + max(0, ceiling((ylower-y)/dy)) &
                           - max(0, ceiling((y-yupper)/dy))
-                aux(1,ii,jj) = aux(1,iint,jint)
+                aux(1,i,j) = aux(1,iint,jint)
             enddo
         endif
     enddo
 
 
-    do ii=1-mbc,mx+mbc
-        x =  xlower + (ilo+ii-.5d0) * dx
+    do i=1-mbc,mx+mbc
+        x =  xlower + (ilo+i-.5d0) * dx
         if ((x < xlower) .or. (x > xupper)) then
-            do jj=1-mbc,my+mbc
-                y = ylower + (jlo+jj-.5d0) * dy
-                iint = ii + max(0, ceiling((xlower-x)/dx)) &
+            do j=1-mbc,my+mbc
+                y = ylower + (jlo+j-.5d0) * dy
+                iint = i + max(0, ceiling((xlower-x)/dx)) &
                           - max(0, ceiling((x-xupper)/dx))
-                jint = jj + max(0, ceiling((ylower-y)/dy)) &
+                jint = j + max(0, ceiling((ylower-y)/dy)) &
                           - max(0, ceiling((y-yupper)/dy))
-                aux(1,ii,jj) = aux(1,iint,jint)
+                aux(1,i,j) = aux(1,iint,jint)
             enddo
         endif
     enddo
@@ -158,12 +158,12 @@ subroutine setaux(mbc,mx,my,xlow,ylow,dx,dy,maux,aux)
         write(23,230)  mbc,mx,my,dx,dy,xlow,ylow
  230    format('==> mbc, mx, my:  ',3i5,'  dx, dy:',2f10.6, &
                 '  xlow,ylow:', 2f10.6)
-        do jj=1-mbc,my+mbc
-            do ii=1-mbc,mx+mbc
-                x = xlow + (ii-0.5d0)*dx
-                y = ylow + (jj-0.5d0)*dy
+        do j=1-mbc,my+mbc
+            do i=1-mbc,mx+mbc
+                x = xlow + (i-0.5d0)*dx
+                y = ylow + (j-0.5d0)*dy
                 if ((x>223) .and. (x<232) .and. (y<37)) &
-                write(23,231) ii,jj,x,y,(aux(m,ii,jj),m=1,maux)
+                write(23,231) i,j,x,y,(aux(m,i,j),m=1,maux)
  231            format(2i4,2f10.3,3e20.10)
             enddo
         enddo
