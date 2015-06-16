@@ -364,6 +364,14 @@ class SurgeData(clawpack.clawutil.data.ClawData):
         # Storm type 3 - Stommel wind field
         self.add_attribute('stommel_wind',1.0)
 
+        # Indexes for storm surge fields - Note these are translated for Fortran
+        # when written out
+        self.add_attribute('wind_index', 4)
+        self.add_attribute('pressure_index', 6)
+
+        # Time output reporting
+        self.add_attribute('landfall_time_output', False)
+
         
     def write(self,out_file='./surge.data',data_source="setrun.py"):
         """Write out the data file to the path given"""
@@ -371,26 +379,37 @@ class SurgeData(clawpack.clawutil.data.ClawData):
         # print "Creating data file %s" % out_file
         self.open_data_file(out_file,data_source)
 
-        self.data_write('rho_air',description="(Density of air)")
-        self.data_write('ambient_pressure',description="(Nominal atmospheric pressure)")
+        self.data_write('rho_air', description="(Density of air)")
+        self.data_write('ambient_pressure', description="(Nominal atmospheric pressure)")
         self.data_write()
         
-        self.data_write('wind_forcing',description='(Wind source term used)')
-        self.data_write('drag_law',description='(Type of drag law to use)')
-        self.data_write('pressure_forcing',description="(Pressure source term used)")
-        self.data_write()
+        self.data_write('wind_forcing', description='(Wind source term used)')
+        if self.wind_forcing:
+            self.data_write("wind_index", value=self.wind_index + 1, 
+                                            description="(Index of wind field)")
+        else:
+            self.data_write("wind_index", value=-1, 
+                                            description="(Index of wind field)")
+        self.data_write('drag_law', description='(Type of drag law to use)')
+        self.data_write('pressure_forcing', description="(Pressure source term used)")
+        if self.pressure_forcing:
+            self.data_write("pressure_index", value=self.pressure_index + 1, 
+                                        description="(Index of pressure field)")
+        else:
+            self.data_write("pressure_index", value=-1, 
+                                        description="(Index of pressure field)")
         
-        # self.data_write('wind_tolerance',description='(Wind speed tolerance)')
-        # self.data_write('pressure_tolerance',description="(Pressure source term tolerance)")
-        # self.data_write()
+        # self.data_write('wind_tolerance', description='(Wind speed tolerance)')
+        # self.data_write('pressure_tolerance', description="(Pressure source term tolerance)")
+        self.data_write()
                 
-        self.data_write('wind_refine',description='(Refinement ratios)')
-        self.data_write('R_refine',description="(Refinement ratios)")
+        self.data_write('wind_refine', description='(Refinement ratios)')
+        self.data_write('R_refine', description="(Refinement ratios)")
         self.data_write()
         
-        self.data_write("storm_type",description='(Storm specification type)')
-        self.data_write('landfall',description="(Landfall time of storm)")
-        self.data_write('storm_file',description="(Location of storm data)")
+        self.data_write("storm_type", description='(Storm specification type)')
+        self.data_write('landfall', description="(Landfall time of storm)")
+        self.data_write('storm_file', description="(Location of storm data)")
 
         if self.storm_type == 0 or self.storm_type == 1:
             pass 
@@ -398,20 +417,25 @@ class SurgeData(clawpack.clawutil.data.ClawData):
             # Open another data file called stored in storm_file and write the 
             # following parameters to it
             self.open_data_file(self.storm_file)
-            self.data_write("ramp_up_t",description="(Ramp up time for wind field)")
-            self.data_write('velocity',description="(Speed of storm)")
-            self.data_write('R_eye_init',description="(Initial position of storm)")
-            self.data_write('A',description="(Hurricane model fit parameter)")
+            self.data_write("ramp_up_t", description="(Ramp up time for wind field)")
+            self.data_write('velocity', description="(Speed of storm)")
+            self.data_write('R_eye_init', description="(Initial position of storm)")
+            self.data_write('A', description="(Hurricane model fit parameter)")
             self.data_write('B')
-            self.data_write('Pc',description="(Pressure in the eye of the hurricane)")
+            self.data_write('Pc', description="(Pressure in the eye of the hurricane)")
         elif self.storm_type == 3:
             # Open another data file called stored in storm_file and write the 
             # following parameters to it
             self.open_data_file(self.storm_file)
-            self.data_write("stommel_wind",description="(Amplitude of Stommel wind)")
+            self.data_write("stommel_wind", description="(Amplitude of Stommel wind)")
         else:
             self.close_data_file()
             raise ValueError("Invalid storm type %s." % self.storm_type)
+
+        self.data_write()
+
+        # Output format control
+        self.data_write("landfall_time_output", description="(Time relative to landfall)")
 
         self.close_data_file()
 
@@ -434,12 +458,21 @@ class FrictionData(clawpack.clawutil.data.ClawData):
         # File support
         self.add_attribute('friction_files',[])
 
+        # Location of friction field in aux array
+        self.add_attribute('friction_index', 3)
+
 
     def write(self, out_file='friction.data', data_source='setrun.py'):
 
         self.open_data_file(out_file,data_source)
 
         self.data_write('variable_friction',description="(method for setting variable friction)")
+        if self.variable_friction:
+            self.data_write('friction_index', value=self.friction_index + 1, 
+                                       description="(Index for friction field)")
+        else:
+            self.data_write('friction_index', value=-1, 
+                                       description="(Index for friction field)")
         self.data_write()
         if self.variable_friction:
             # Region based friction

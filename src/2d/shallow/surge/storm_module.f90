@@ -22,6 +22,9 @@ module storm_module
     ! Track file IO unit
     integer, parameter :: track_unit = 424
 
+    ! Time status output option
+    logical, save :: landfall_time_output
+
     ! Locations of wind and pressure fields
     integer :: wind_index, pressure_index
     
@@ -96,10 +99,6 @@ contains
         else
             call opendatafile(unit,'surge.data')
         endif
-
-        ! Set some parameters
-        wind_index = 5
-        pressure_index = 7
         
         ! Read in parameters
         ! Physics
@@ -109,6 +108,7 @@ contains
 
         ! Forcing terms
         read(unit,*) wind_forcing
+        read(unit,*) wind_index
         read(unit,*) drag_law
         if (.not.wind_forcing) drag_law = 0
         select case(drag_law)
@@ -122,6 +122,7 @@ contains
                 stop "*** ERROR *** Invalid wind drag law."
         end select
         read(unit,*) pressure_forcing
+        read(unit,*) pressure_index
         read(unit,*)
         
         ! Set drag law function pointer
@@ -143,6 +144,10 @@ contains
         read(unit,"(i1)") storm_type
         read(unit,"(d16.8)") landfall
         read(unit,*) storm_file_path
+
+        ! Time output formatting
+        read(unit,*)
+        read(unit,*) landfall_time_output
         
         close(unit)
 

@@ -10,6 +10,7 @@ c
       use topo_module, only: dt_max_dtopo, num_dtopo, topo_finalized,
      &                       aux_finalized, topo0work
       use gauges_module, only: setbestsrc
+      use storm_module, only: landfall_time_output, landfall
 
 
       implicit double precision (a-h,o-z)
@@ -17,6 +18,16 @@ c
       logical vtime,dumpout/.false./,dumpchk/.false./,rest,dump_final
       dimension dtnew(maxlv), ntogo(maxlv), tlevel(maxlv)
       integer clock_start, clock_finish, clock_rate
+
+      character(len=100) :: time_output_format
+      real(kind=8) :: time_output
+
+      character(len=*), parameter :: TIME_FORMAT =
+     &       "(' AMRCLAW: level ',i2,'  CFL = ',e8.3,'  dt = '" // 
+     &       ",e10.4,  '  final t = ',e12.6)"
+      character(len=*), parameter :: TIME_FORMAT_LANDFALL = 
+     &       "(' AMRCLAW: level ',i2,'  CFL = ',e8.3,'  dt = '" //
+     &       ",e10.4,  '  final t = ',e12.6,' hours')"
 
 c
 c :::::::::::::::::::::::::::: TICK :::::::::::::::::::::::::::::
@@ -255,15 +266,22 @@ c         # rjl modified 6/17/05 to print out *after* advanc and print cfl
 c         # rjl & mjb changed to cfl_level, 3/17/10
 
           timenew = tlevel(level)+possk(level)
+          if (landfall_time_output) then
+            time_output = (timenew - landfall) / 60.d0**2
+            time_output_format = TIME_FORMAT_LANDFALL
+          else
+            time_output = timenew
+            time_output_format = TIME_FORMAT
+          end if
           if (tprint) then
-              write(outunit,100)level,cfl_level,possk(level),timenew
-              endif
-          if (method(4).ge.level) then
-              write(6,100)level,cfl_level,possk(level),timenew
-              endif
-100       format(' AMRCLAW: level ',i2,'  CFL = ',e8.3,
-     &           '  dt = ',e10.4,  '  final t = ',e12.6)
-
+              write(outunit, time_output_format) level, cfl_level, 
+     &                                           possk(level), 
+     &                                           time_output
+          end if
+          if (method(4) >= level) then
+              print time_output_format, level, cfl_level, possk(level),
+     &                                  time_output
+          end if
 
 c        # to debug individual grid updates...
 c        call valout(level,level,time,nvar,naux)

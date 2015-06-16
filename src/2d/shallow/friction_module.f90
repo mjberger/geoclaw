@@ -21,7 +21,7 @@ module friction_module
     save
 
     ! Parameters
-    integer, public, parameter :: friction_index = 4
+    integer, public :: friction_index
 
     ! Whether to use variable friction and what type to specify
     logical, public :: variable_friction
@@ -80,6 +80,7 @@ contains
 
         ! Basic switch to turn on variable friction
         read(unit,*) variable_friction
+        read(unit,*) friction_index
         read(unit,'(a)')
 
         if (variable_friction) then
