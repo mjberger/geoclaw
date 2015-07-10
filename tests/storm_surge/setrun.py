@@ -417,13 +417,7 @@ def setgeo(rundata):
     # [t1,t2,noutput,x1,x2,y1,y2,xpoints,ypoints,\
     #  ioutarrivaltimes,ioutsurfacemax]
 
-    return rundata
-    # end of function setgeo
-    # ----------------------
-
-
-def set_storm(rundata):
-
+    # == Set Surge Data ==
     data = rundata.stormdata
 
     # Physics parameters
@@ -446,11 +440,8 @@ def set_storm(rundata):
     # Storm type 2 - Idealized storm track
     data.storm_file = 'ike.storm'
 
-    return data
 
-
-def set_friction(rundata):
-
+    # == Set Variable Friction ==
     data = rundata.frictiondata
 
     # Variable friction
@@ -468,7 +459,9 @@ def set_friction(rundata):
                                   [np.infty,-10.0,-200.0,-np.infty],
                                   [0.030, 0.012, 0.022]])
 
-    return data
+    return rundata
+    # end of function setgeo
+    # ----------------------
 
 
 if __name__ == '__main__':
