@@ -15,7 +15,7 @@ c
 
       implicit double precision (a-h,o-z)
 
-      logical vtime,dumpout/.false./,dumpchk/.false./,rest,dump_final
+      logical vtime, rest, dump_final, dumpout, dumpchk
       dimension dtnew(maxlv), ntogo(maxlv), tlevel(maxlv)
       integer clock_start, clock_finish, clock_rate
 
@@ -56,6 +56,9 @@ c          each step) to keep track of when that level should
 c          have its error estimated and finer levels should be regridded.
 c ::::::::::::::::::::::::::::::::::::;::::::::::::::::::::::::::
 c
+
+      dumpout = .false.
+      dumpchk = .false.
 
       ncycle         = nstart
       call setbestsrc()     ! need at very start of run, including restart
@@ -157,8 +160,9 @@ c           write(*,*)" new possk is ", possk(1)
       if (time.lt.chktime .and. time + possk(1) .ge. chktime) then
 c        ## adjust time step  to hit chktime exactly, and do checkpointing
          possk(1) = chktime - time
-         do 13 i = 2, mxnest
+         do i = 2, mxnest
  13         possk(i) = possk(i-1) / kratio(i-1)
+         end do
          nextchk = nextchk + 1
         dumpchk = .true.
       else
@@ -178,7 +182,7 @@ c     all aux arrays are consistent with the final topography.
 c     The variable aux_finalized is incremented so that we can check
 c     if this is true by checking if aux_finalized == 2 elsewhere in code.
 
-	  if (aux_finalized .eq. 1 .and. num_dtopo > 0) then
+      if (aux_finalized .eq. 1 .and. num_dtopo > 0) then
 c         # this is only true once, and only if there was moving topo
           deallocate(topo0work)
           endif 
@@ -237,10 +241,13 @@ c
              call outtre(lstart(lbase+1),.false.,nvar,naux)
           endif
  70       continue
-          do 80  i  = lbase, lfine
- 80          icheck(i) = 0
-          do 81  i  = lbase+1, lfine
- 81          tlevel(i) = tlevel(lbase)
+          icheck(lbase:lfine) = 0
+C           do 80  i  = lbase, lfine
+C  80          icheck(i) = 0
+C           do 81  i  = lbase+1, lfine
+C  81          tlevel(i) = tlevel(lbase)
+          
+          tlevel(lbase + 1 : lfine) = tlevel(lbase)
 c
 c          MJB: modified to check level where new grids start, which is lbase+1
           if (verbosity_regrid.ge.lbase+1) then
