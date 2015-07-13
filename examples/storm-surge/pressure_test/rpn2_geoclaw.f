@@ -138,6 +138,7 @@ c        !set normal direction
             vR = 0.d0
             phiR = 0.d0
             pR = 0.d0
+            pL = 0.d0
          endif
 
          if (hL.gt.drytol) then
@@ -152,6 +153,7 @@ c        !set normal direction
             vL=0.d0
             phiL = 0.d0
             pL = 0.d0
+            pR = 0.d0
          endif
 
          wall(1) = 1.d0
