@@ -35,7 +35,7 @@ subroutine setaux(mbc,mx,my,xlow,ylow,dx,dy,maux,aux)
     
     ! Locals
     integer :: ii,jj,m, iint,jint
-    real(kind=8) :: x,y,xm,ym,xp,yp,topo_integral
+    real(kind=8) :: x,y,xm,ym,xp,yp,topo_integral,r
     character(len=*), parameter :: aux_format = "(2i4,4d15.3)"
     integer :: skipcount,iaux,ilo,jlo
 
@@ -84,11 +84,18 @@ subroutine setaux(mbc,mx,my,xlow,ylow,dx,dy,maux,aux)
             do ii = 1 - mbc, mx + mbc
                 x = xlow + (ii - 0.5d0) * dx
 
-                if (sqrt(x**2 + y**2) < 10d3) then
+                r = sqrt(x**2 + y**2)
+#ifdef smooth
+                ! Smooth version
+                aux(pressure_index, ii, jj) = ambient_pressure * (1 + 0.5 * exp(-(r / 10d3)**2))
+#else                
+                ! Discontinuous version
+                if (r < 10d3) then
                     aux(pressure_index, ii, jj) = ambient_pressure * 1.5d0
                 else
                     aux(pressure_index, ii, jj) = ambient_pressure
                 end if
+#endif
             end do
         end do
     endif
