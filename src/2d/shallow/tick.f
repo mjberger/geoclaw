@@ -10,13 +10,24 @@ c
       use topo_module, only: dt_max_dtopo, num_dtopo, topo_finalized,
      &                       aux_finalized, topo0work
       use gauges_module, only: setbestsrc
+      use storm_module, only: landfall_time_output, landfall
 
 
       implicit double precision (a-h,o-z)
 
-      logical vtime,dumpout/.false./,dumpchk/.false./,rest,dump_final
+      logical vtime, rest, dump_final, dumpout, dumpchk
       dimension dtnew(maxlv), ntogo(maxlv), tlevel(maxlv)
       integer clock_start, clock_finish, clock_rate
+
+      character(len=100) :: time_output_format
+      real(kind=8) :: time_output
+
+      character(len=*), parameter :: TIME_FORMAT =
+     &       "(' AMRCLAW: level ',i2,'  CFL = ',e8.3,'  dt = '" // 
+     &       ",e10.4,  '  final t = ',e12.6)"
+      character(len=*), parameter :: TIME_FORMAT_LANDFALL = 
+     &       "(' AMRCLAW: level ',i2,'  CFL = ',e8.3,'  dt = '" //
+     &       ",e10.4,  '  final t = ',e12.6,' hours')"
 
 c
 c :::::::::::::::::::::::::::: TICK :::::::::::::::::::::::::::::
@@ -45,6 +56,9 @@ c          each step) to keep track of when that level should
 c          have its error estimated and finer levels should be regridded.
 c ::::::::::::::::::::::::::::::::::::;::::::::::::::::::::::::::
 c
+
+      dumpout = .false.
+      dumpchk = .false.
 
       ncycle         = nstart
       call setbestsrc()     ! need at very start of run, including restart
@@ -146,8 +160,9 @@ c           write(*,*)" new possk is ", possk(1)
       if (time.lt.chktime .and. time + possk(1) .ge. chktime) then
 c        ## adjust time step  to hit chktime exactly, and do checkpointing
          possk(1) = chktime - time
-         do 13 i = 2, mxnest
+         do i = 2, mxnest
  13         possk(i) = possk(i-1) / kratio(i-1)
+         end do
          nextchk = nextchk + 1
         dumpchk = .true.
       else
@@ -226,10 +241,13 @@ c
              call outtre(lstart(lbase+1),.false.,nvar,naux)
           endif
  70       continue
-          do 80  i  = lbase, lfine
- 80          icheck(i) = 0
-          do 81  i  = lbase+1, lfine
- 81          tlevel(i) = tlevel(lbase)
+          icheck(lbase:lfine) = 0
+C           do 80  i  = lbase, lfine
+C  80          icheck(i) = 0
+C           do 81  i  = lbase+1, lfine
+C  81          tlevel(i) = tlevel(lbase)
+          
+          tlevel(lbase + 1 : lfine) = tlevel(lbase)
 c
 c          MJB: modified to check level where new grids start, which is lbase+1
           if (verbosity_regrid.ge.lbase+1) then
@@ -255,15 +273,22 @@ c         # rjl modified 6/17/05 to print out *after* advanc and print cfl
 c         # rjl & mjb changed to cfl_level, 3/17/10
 
           timenew = tlevel(level)+possk(level)
+          if (landfall_time_output) then
+            time_output = (timenew - landfall) / 60.d0**2
+            time_output_format = TIME_FORMAT_LANDFALL
+          else
+            time_output = timenew
+            time_output_format = TIME_FORMAT
+          end if
           if (tprint) then
-              write(outunit,100)level,cfl_level,possk(level),timenew
-              endif
-          if (method(4).ge.level) then
-              write(6,100)level,cfl_level,possk(level),timenew
-              endif
-100       format(' AMRCLAW: level ',i2,'  CFL = ',e8.3,
-     &           '  dt = ',e10.4,  '  final t = ',e12.6)
-
+              write(outunit, time_output_format) level, cfl_level, 
+     &                                           possk(level), 
+     &                                           time_output
+          end if
+          if (method(4) >= level) then
+              print time_output_format, level, cfl_level, possk(level),
+     &                                  time_output
+          end if
 
 c        # to debug individual grid updates...
 c        call valout(level,level,time,nvar,naux)

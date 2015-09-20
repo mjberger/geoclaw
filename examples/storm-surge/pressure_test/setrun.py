@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 # encoding: utf-8
 """
 Module to set up run time parameters for Clawpack.
@@ -6,18 +7,6 @@ The values set in the function setrun are then written out to data files
 that will be read in by the Fortran code.
 
 """
-
-import os
-import datetime
-
-import numpy as np
-
-# Need to adjust the date a bit due to weirdness with leap year (I think)
-ike_landfall = datetime.datetime(2008,9,13 - 1,7) - datetime.datetime(2008,1,1,0)
-
-#                           days   s/hour    hours/day            
-days2seconds = lambda days: days * 60.0**2 * 24.0
-seconds2days = lambda seconds: seconds / (60.0**2 * 24.0)
 
 #------------------------------
 def setrun(claw_pkg='geoclaw'):
@@ -66,16 +55,15 @@ def setrun(claw_pkg='geoclaw'):
     clawdata.num_dim = num_dim
 
     # Lower and upper edge of computational domain:
-    clawdata.lower[0] = -99.0      # west longitude
-    clawdata.upper[0] = -70.0      # east longitude
+    clawdata.lower[0] = -25000
+    clawdata.upper[0] =  25000
 
-    clawdata.lower[1] = 8.0       # south latitude
-    clawdata.upper[1] = 32.0      # north latitude
+    clawdata.lower[1] = -25000
+    clawdata.upper[1] =  25000
 
     # Number of grid cells:
-    degree_factor = 4 # (0.25º,0.25º) ~ (25237.5 m, 27693.2 m) resolution
-    clawdata.num_cells[0] = int(clawdata.upper[0] - clawdata.lower[0]) * degree_factor
-    clawdata.num_cells[1] = int(clawdata.upper[1] - clawdata.lower[1]) * degree_factor
+    clawdata.num_cells[0] = 100
+    clawdata.num_cells[1] = 100
 
     # ---------------
     # Size of system:
@@ -85,19 +73,19 @@ def setrun(claw_pkg='geoclaw'):
     clawdata.num_eqn = 3
 
     # Number of auxiliary variables in the aux array (initialized in setaux)
-    # First three are from shallow GeoClaw, fourth is friction and last 3 are
-    # storm fields
-    clawdata.num_aux = 3 + 1 + 3
+    # First three are from shallow GeoClaw, fourth is friction and last is 
+    # pressure
+    clawdata.num_aux = 3 + 1 + 1 
 
     # Index of aux array corresponding to capacity function, if there is one:
-    clawdata.capa_index = 2
+    clawdata.capa_index = 0
 
     
     
     # -------------
     # Initial time:
     # -------------
-    clawdata.t0 = days2seconds(ike_landfall.days - 3) + ike_landfall.seconds
+    clawdata.t0 = 0.0
     # clawdata.t0 = days2seconds(ike_landfall.days - 1) + ike_landfall.seconds
 
     # Restart from checkpoint file of a previous run?
@@ -120,14 +108,11 @@ def setrun(claw_pkg='geoclaw'):
 
     clawdata.output_style = 1
 
-    if clawdata.output_style == 1:
+    if clawdata.output_style==1:
         # Output nout frames at equally spaced times up to tfinal:
         # clawdata.tfinal = days2seconds(date2days('2008091400'))
-        # Full test
-        # clawdata.tfinal = days2seconds(ike_landfall.days + 0.75) + ike_landfall.seconds
-        # Short test - Do 12 hours of simulation
-        clawdata.tfinal = days2seconds(ike_landfall.days - 2.75) + ike_landfall.seconds
-        recurrence = 2
+        clawdata.tfinal = 24.0 * 60.0**2 * 5.0
+        recurrence = 24 * 6
         clawdata.num_output_times = int((clawdata.tfinal - clawdata.t0) 
                                             * recurrence / (60**2 * 24))
 
@@ -145,7 +130,7 @@ def setrun(claw_pkg='geoclaw'):
         clawdata.output_t0 = True
         
 
-    clawdata.output_format = 'binary'      # 'ascii' or 'netcdf' 
+    clawdata.output_format = 'ascii'      # 'ascii' or 'netcdf' 
     clawdata.output_q_components = 'all'   # could be list such as [True,True]
     clawdata.output_aux_components = 'all'
     clawdata.output_aux_onlyonce = False    # output aux arrays only at t0
@@ -186,7 +171,7 @@ def setrun(claw_pkg='geoclaw'):
     # clawdata.cfl_max = 0.5
 
     # Maximum number of time steps to allow between output times:
-    clawdata.steps_max = 5000
+    clawdata.steps_max = 10**8
 
 
 
@@ -196,7 +181,7 @@ def setrun(claw_pkg='geoclaw'):
     # ------------------
 
     # Order of accuracy:  1 => Godunov,  2 => Lax-Wendroff plus limiters
-    clawdata.order = 1
+    clawdata.order = 2
     
     # Use dimensional splitting? (not yet available for AMR)
     clawdata.dimensional_split = 'unsplit'
@@ -205,7 +190,7 @@ def setrun(claw_pkg='geoclaw'):
     #  0 or 'none'      ==> donor cell (only normal solver used)
     #  1 or 'increment' ==> corner transport of waves
     #  2 or 'all'       ==> corner transport of 2nd order corrections too
-    clawdata.transverse_waves = 1
+    clawdata.transverse_waves = 2
 
     # Number of waves in the Riemann solution:
     clawdata.num_waves = 3
@@ -278,7 +263,7 @@ def setrun(claw_pkg='geoclaw'):
     amrdata = rundata.amrdata
 
     # max number of refinement levels:
-    amrdata.amr_levels_max = 2
+    amrdata.amr_levels_max = 1
 
     # List of refinement ratios at each level (length at least mxnest-1)
     amrdata.refinement_ratios_x = [2,2,2,6,16]
@@ -290,7 +275,7 @@ def setrun(claw_pkg='geoclaw'):
     # This must be a list of length maux, each element of which is one of:
     #   'center',  'capacity', 'xleft', or 'yleft'  (see documentation).
 
-    amrdata.aux_type = ['center','capacity','yleft','center','center','center',
+    amrdata.aux_type = ['center','center','yleft','center','center','center',
                          'center', 'center', 'center']
 
 
@@ -329,19 +314,29 @@ def setrun(claw_pkg='geoclaw'):
     # More AMR parameters can be set -- see the defaults in pyclaw/data.py
 
     # == setregions.data values ==
-    # regions = rundata.regiondata.regions
+    regions = rundata.regiondata.regions
     # to specify regions of refinement append lines of the form
     #  [minlevel,maxlevel,t1,t2,x1,x2,y1,y2]
 
     # Gauges from Ike AWR paper (2011 Dawson et al)
-    rundata.gaugedata.gauges.append([1, -90.0, 25.00, 
-                                  rundata.clawdata.t0, rundata.clawdata.tfinal])
-    rundata.gaugedata.gauges.append([2, -87.5, 26.25, 
-                                  rundata.clawdata.t0, rundata.clawdata.tfinal])
-    rundata.gaugedata.gauges.append([3, -85.0, 27.50, 
-                                  rundata.clawdata.t0, rundata.clawdata.tfinal])
-    rundata.gaugedata.gauges.append([4, -82.5, 30.00, 
-                                  rundata.clawdata.t0, rundata.clawdata.tfinal])
+    rundata.gaugedata.gauges.append([1,    0.0,    0.0, rundata.clawdata.t0, 
+                                                        rundata.clawdata.tfinal])
+    rundata.gaugedata.gauges.append([2,    0.0,  2.5e3, rundata.clawdata.t0, 
+                                                        rundata.clawdata.tfinal])
+    rundata.gaugedata.gauges.append([3,  2.5e3,    0.0, rundata.clawdata.t0, 
+                                                        rundata.clawdata.tfinal])
+    rundata.gaugedata.gauges.append([4,    0.0, -2.5e3, rundata.clawdata.t0, 
+                                                        rundata.clawdata.tfinal])
+    rundata.gaugedata.gauges.append([5, -2.5e3,    0.0, rundata.clawdata.t0, 
+                                                        rundata.clawdata.tfinal])
+    rundata.gaugedata.gauges.append([6,    0.0,  7.5e3, rundata.clawdata.t0, 
+                                                        rundata.clawdata.tfinal])
+    rundata.gaugedata.gauges.append([7,  7.5e3,    0.0, rundata.clawdata.t0, 
+                                                        rundata.clawdata.tfinal])
+    rundata.gaugedata.gauges.append([8,    0.0, -7.5e3, rundata.clawdata.t0, 
+                                                        rundata.clawdata.tfinal])
+    rundata.gaugedata.gauges.append([9, -7.5e3,    0.0, rundata.clawdata.t0, 
+                                                        rundata.clawdata.tfinal])
 
     #------------------------------------------------------------------
     # GeoClaw specific parameters:
@@ -369,17 +364,17 @@ def setgeo(rundata):
        
     # == Physics ==
     geo_data.gravity = 9.81
-    geo_data.coordinate_system = 2
+    geo_data.coordinate_system = 1
     geo_data.earth_radius = 6367.5e3
 
     # == Forcing Options
-    geo_data.coriolis_forcing = True
-    geo_data.friction_forcing = True
+    geo_data.coriolis_forcing = False
+    geo_data.friction_forcing = False
     geo_data.manning_coefficient = 0.025 # Overridden below
     geo_data.friction_depth = 1e10
 
     # == Algorithm and Initial Conditions ==
-    geo_data.sea_level = 0.28  # Due to seasonal swelling of gulf
+    geo_data.sea_level = 0.0
     geo_data.dry_tolerance = 1.e-2
 
     # Refinement Criteria
@@ -397,8 +392,9 @@ def setgeo(rundata):
     #   [topotype, minlevel, maxlevel, t1, t2, fname]
     # See regions for control over these regions, need better bathy data for the
     # smaller domains
-    topo_data.topofiles.append([3, 1, 5, rundata.clawdata.t0, rundata.clawdata.tfinal, 
-                              'gulf_caribbean.tt3'])
+    topo_data.topofiles.append([1, 1, 5, rundata.clawdata.t0, rundata.clawdata.tfinal, 
+                                "./flat.topotype1"])
+
     # == setdtopo.data values ==
     dtopo_data = rundata.dtopo_data
     dtopo_data.dtopofiles = []
@@ -416,53 +412,24 @@ def setgeo(rundata):
     # for fixed grids append lines of the form
     # [t1,t2,noutput,x1,x2,y1,y2,xpoints,ypoints,\
     #  ioutarrivaltimes,ioutsurfacemax]
-
-    # == Set Surge Data ==
-    data = rundata.stormdata
-
-    # Physics parameters
-    data.rho_air = 1.15
-    data.ambient_pressure = 101.3e3 # Nominal atmos pressure
-
-    # Source term controls - These are currently not respected
-    data.wind_forcing = True
-    data.drag_law = 1
-    data.pressure_forcing = True
-
-    # AMR parameters
-    data.wind_refine = [20.0,40.0,60.0] # m/s
-    data.R_refine = [60.0e3,40e3,20e3]  # m
     
-    # Storm parameters
-    data.storm_type = 1 # Type of storm
-    data.landfall = days2seconds(ike_landfall.days) + ike_landfall.seconds
-
-    # Storm type 2 - Idealized storm track
-    data.storm_file = 'ike.storm'
-
-
-    # == Set Variable Friction ==
-    data = rundata.frictiondata
-
-    # Variable friction
-    data.variable_friction = True
-
-    # Region based friction
-    # Entire domain
-    data.friction_regions.append([rundata.clawdata.lower, 
-                                  rundata.clawdata.upper,
-                                  [np.infty,0.0,-np.infty],
-                                  [0.030, 0.022]])
-
-    # La-Tex Shelf
-    data.friction_regions.append([(-98, 25.25), (-90, 30),
-                                  [np.infty,-10.0,-200.0,-np.infty],
-                                  [0.030, 0.012, 0.022]])
+    rundata = set_surge(rundata)
 
     return rundata
     # end of function setgeo
     # ----------------------
 
+
+def set_surge(rundata):
+
+    surge_data = rundata.surge_data
+
+    surge_data.pressure_forcing = True
+    surge_data.pressure_index = 4
+
+    surge_data.landfall_time_output = False
+
+    return rundata
 
 if __name__ == '__main__':
     # Set up run-time parameters and write all data files.
