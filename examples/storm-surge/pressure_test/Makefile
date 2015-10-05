@@ -15,9 +15,9 @@ CLAWMAKE = $(CLAW)/clawutil/src/Makefile.common
 CLAW_PKG = geoclaw                  # Clawpack package to use
 EXE = xgeoclaw                 # Executable to create
 SETRUN_FILE = setrun.py        # File containing function to make data
-OUTDIR = _output               # Directory for output
+OUTDIR = _outputF               # Directory for output
 SETPLOT_FILE = setplot.py      # File containing function to set plots
-PLOTDIR = _plots               # Directory for plots
+PLOTDIR = _plotsF               # Directory for plots
 
 # Environment variable FC should be set to fortran compiler, e.g. gfortran
 FFLAGS ?=
@@ -42,7 +42,7 @@ endif
 
 MODULES = \
  $(GEOLIB)/utility_module.f90 \
- $(AMRLIB)/amr_module.f90 \
+ ./amr_module.f90 \
  $(AMRLIB)/regions_module.f90 \
  $(GEOLIB)/geoclaw_module.f90 \
  $(GEOLIB)/gauges_module.f90 \
@@ -142,7 +142,7 @@ SOURCES = \
   $(AMRLIB)/outval.f \
   $(AMRLIB)/copysol.f \
   $(AMRLIB)/outvar.f \
-  $(AMRLIB)/outmsh.f \
+  ./outmsh.f \
   $(AMRLIB)/outtre.f \
   $(AMRLIB)/domain.f  \
   $(AMRLIB)/cellave.f \

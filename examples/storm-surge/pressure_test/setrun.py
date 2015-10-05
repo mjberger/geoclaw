@@ -111,8 +111,10 @@ def setrun(claw_pkg='geoclaw'):
     if clawdata.output_style==1:
         # Output nout frames at equally spaced times up to tfinal:
         # clawdata.tfinal = days2seconds(date2days('2008091400'))
-        clawdata.tfinal = 24.0 * 60.0**2 * 5.0
-        recurrence = 24 * 6
+        #clawdata.tfinal = 24.0 * 60.0**2 * 5.0
+        clawdata.tfinal = 24.0 * 60.0**2 * 5.0 / 10
+        #recurrence = 24 * 6
+        recurrence = 24 * 6 * 10
         clawdata.num_output_times = int((clawdata.tfinal - clawdata.t0) 
                                             * recurrence / (60**2 * 24))
 
@@ -237,7 +239,7 @@ def setrun(claw_pkg='geoclaw'):
     # Specify when checkpoint files should be created that can be
     # used to restart a computation.
 
-    clawdata.checkpt_style = 0
+    clawdata.checkpt_style = 1
 
     if clawdata.checkpt_style == 0:
         # Do not checkpoint at all
