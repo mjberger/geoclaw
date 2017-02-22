@@ -122,15 +122,17 @@ def setplot(plotdata=None,  bathy_location=0.15,  bathy_angle=0.0,
 
     # ========================================================================
     # Axis limits
-    #xlimits = [amrdata.xlower,amrdata.xupper]
-    xlimits = [-0.5,0.5]
-    #ylimits = [amrdata.ylower,amrdata.yupper]
-    ylimits = [-0.5,0.5]
+    xlimits = [clawdata.lower[0], clawdata.upper[0]]
+    #xlimits = [-0.5,0.5]
+    ylimits = [clawdata.lower[1],clawdata.upper[1]]
+    #ylimits = [-0.5,0.5]
     eta = [multilayer_data.eta[0],multilayer_data.eta[1]]
     top_surface_limits = [eta[0]-0.03,eta[0]+0.03]
+    top_surface_limits = [eta[0]-1e-14,eta[0]+1e-14]
+
     internal_surface_limits = [eta[1]-0.015,eta[1]+0.015]
     # top_surface_limits = [eta[0]-0.3,eta[0]+0.3]
-    # internal_surface_limits = [eta[1]-0.15,eta[1]+0.15]
+    internal_surface_limits = [eta[1]-1e-14,eta[1]+1e-14]
     top_speed_limits = [0.0,0.1]
     internal_speed_limits = [0.0,0.03]
     

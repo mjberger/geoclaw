@@ -37,12 +37,11 @@ else ifeq ($(UNAME), Linux)
 		# Please refer to 
 		# http://software.intel.com/en-us/articles/intel-mkl-link-line-advisor/
 		# for other installation types
+		#MKLROOT = /opt/pkg/intel/2016/compilers_and_libraries_2016.3.210/linux/mkl
+		MKLROOT = /opt/pkg/intel/2013/composer_xe_2013.1.117/mkl
 		FFLAGS += -I$(MKLROOT)/include
-		ifndef LFLAGS                                                                                                                                    
-		    LFLAGS =  -Wl,--start-group $(MKLROOT)/lib/intel64/libmkl_intel_lp64.a $(MKLROOT)/lib/intel64/libmkl_core.a $(MKLROOT)/lib/intel64/libmkl_sequential.a -Wl,--end-group -lpthread -lm $(FFLAGS)
-		else
-		    LFLAGS +=  -Wl,--start-group $(MKLROOT)/lib/intel64/libmkl_intel_ilp64.a $(MKLROOT)/lib/intel64/libmkl_core.a $(MKLROOT)/lib/intel64/libmkl_sequential.a -Wl,--end-group -lpthread -lm $(FFLAGS)
-		endif
+                LFLAGS +=  -Wl,--start-group ${MKLROOT}/lib/intel64/libmkl_intel_lp64.a ${MKLROOT}/lib/intel64/libmkl_sequential.a ${MKLROOT}/lib/intel64/libmkl_core.a -Wl,--end-group -lpthread -lm -ldl
+
 	else ifeq ($(FC), gfortran)
 		ifndef LFLAGS
 			LFLAGS = -llapack $(FFLAGS)
@@ -75,10 +74,10 @@ EXCLUDE_SOURCES = \
 
 MODULES = \
  $(GEOLIB)/multilayer/gauges_module.f90 \
- ./qinit_module.f90
+ $(GEOLIB)/multilayer/qinit_module.f90
 
 SOURCES = \
-  ./qinit.f90 \
+  $(GEOLIB)/multilayer/qinit.f90 \
   $(GEOLIB)/multilayer/setaux.f90 \
   $(GEOLIB)/multilayer/b4step2.f90 \
   $(GEOLIB)/multilayer/getmaxspeed.f90 \

@@ -128,8 +128,8 @@ def setrun(claw_pkg='geoclaw'):
 
 
     # Number of grid cells: Coarsest grid
-    clawdata.num_cells[0] = 150
-    clawdata.num_cells[1] = 150
+    clawdata.num_cells[0] = 80
+    clawdata.num_cells[1] = 40
 
     # ---------------
     # Size of system:
@@ -139,7 +139,8 @@ def setrun(claw_pkg='geoclaw'):
     clawdata.num_eqn = 6
 
     # Number of auxiliary variables in the aux array (initialized in setaux)
-    clawdata.num_aux = 4 + rundata.multilayer_data.num_layers
+    #clawdata.num_aux = 4 + rundata.multilayer_data.num_layers
+    clawdata.num_aux = 6
 
     # Index of aux array corresponding to capacity function, if there is one:
     clawdata.capa_index = 0
@@ -169,7 +170,7 @@ def setrun(claw_pkg='geoclaw'):
     # Note that the time integration stops after the final output time.
     # The solution at initial time t0 is always written in addition.
 
-    clawdata.output_style = 1
+    clawdata.output_style = 3 
 
     if clawdata.output_style==1:
         # Output nout frames at equally spaced times up to tfinal:
@@ -435,7 +436,8 @@ def setgeo(rundata):
     # == Algorithm and Initial Conditions ==
     geo_data.sea_level = 0.0
     geo_data.dry_tolerance = 1.e-3
-    geo_data.friction_forcing = True
+    #geo_data.friction_forcing = True
+    geo_data.friction_forcing = False
     geo_data.manning_coefficient = 0.025
     geo_data.friction_depth = 1e6
 
@@ -469,8 +471,9 @@ def set_multilayer(rundata):
 
     # Physics parameters
     data.num_layers = 2
-    data.rho = [0.9,1.0]
+    data.rho = [1.0,1.2]
     data.eta = [0.0,-0.6]
+    data.eta = [0.0, -21.0]
     
     # Algorithm parameters
     data.eigen_method = 2
@@ -479,13 +482,14 @@ def set_multilayer(rundata):
     # data.wave_tolerance = [0.1,0.1]
     # data.dry_limit = True
 
-    rundata.replace_data('qinit_data', QinitMultilayerData())
-    rundata.qinit_data.qinit_type = 6
-    rundata.qinit_data.epsilon = 0.02
-    rundata.qinit_data.angle = 0.0
-    rundata.qinit_data.sigma = 0.02
-    rundata.qinit_data.wave_family = 4
-    rundata.qinit_data.init_location = [-0.1,0.0]
+#    rundata.replace_data('qinit_data', QinitMultilayerData())
+#    rundata.qinit_data.qinit_type = 6
+#    rundata.qinit_data.epsilon = 0.02
+#    rundata.qinit_data.epsilon = 0.0
+#    rundata.qinit_data.angle = 0.0
+#    rundata.qinit_data.sigma = 0.02
+#    rundata.qinit_data.wave_family = 4
+#    rundata.qinit_data.init_location = [-0.1,0.0]
 
     return rundata
 
@@ -501,12 +505,11 @@ def write_topo_file(run_data, out_file, **kwargs):
     # Make topography
     topo_func = lambda x, y: bathy_step(x, y, **kwargs)
     topo = tt.Topography(topo_func=topo_func)
+    N = numpy.max(rundata.clawdata.num_cells) + 8
     topo.x = numpy.linspace(run_data.clawdata.lower[0], 
-                            run_data.clawdata.upper[0], 
-                            run_data.clawdata.num_cells[0] + 8)
+                            run_data.clawdata.upper[0], N) 
     topo.y = numpy.linspace(run_data.clawdata.lower[1], 
-                            run_data.clawdata.upper[1], 
-                            run_data.clawdata.num_cells[1] + 8)
+                            run_data.clawdata.upper[1], N)
     topo.write(out_file)
 
     # Write out simple bathy geometry file for communication to the plotting
@@ -532,4 +535,4 @@ if __name__ == '__main__':
 
     rundata.write()
 
-    write_topo_file(rundata, 'topo.tt2')
+    write_topo_file(rundata, 'topo.tt2', left=-20.0, right=-20.0)
