@@ -54,6 +54,7 @@ SOURCES = \
   $(CLAW)/riemann/src/geoclaw_riemann_utils.f \
   ./b4step2.f90 \
   ./stepgrid.f \
+  ./advanc.f \
 
 #-------------------------------------------------------------------
 # Include Makefile containing standard definitions and make options:

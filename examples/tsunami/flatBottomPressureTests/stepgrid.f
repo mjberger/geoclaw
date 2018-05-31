@@ -2,7 +2,7 @@ c
 c -------------------------------------------------------------
 c
       subroutine stepgrid(q,fm,fp,gm,gp,mitot,mjtot,mbc,dt,dtnew,dx,dy,
-     &                  nvar,xlow,ylow,time,mptr,maux,aux)
+     &                  nvar,xlow,ylow,time,mptr,maux,aux,updateMax)
 c
 c
 c ::::::::::::::::::: STEPGRID ::::::::::::::::::::::::::::::::::::
@@ -250,7 +250,7 @@ c            # no capa array.  Standard flux differencing:
      &           - dtdx * (fm(m,i+1,j) - fp(m,i,j))
      &           - dtdy * (gm(m,i,j+1) - gp(m,i,j))
            q(m,i,j) = q(m,i,j) + update
-           update_max = max(update_max, abs(update))
+           updateMax = max(updateMax, abs(update))
  50       continue
          else
           do 51 j=mbc+1,mjtot-mbc
@@ -385,7 +385,6 @@ c
      &              '  on grid ',i3, ' level ',i3)
             endif
 c
-      write(*,*)" grid ",mptr," max update ",updae_max
       if (dump) then
          write(outunit,*)" at end of stepgrid: dumping grid ",mptr
          do i = mbc+1, mitot-mbc
