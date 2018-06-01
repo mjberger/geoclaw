@@ -395,6 +395,7 @@ c            write(*,545) i,j,(q(i,j,ivar),ivar=1,nvar)
          end do
       endif
 c
+      write(*,*)"stepgrid thisUpdateMax ",thisUpdateMax," grid ",mptr
       return
       end
 
