@@ -19,7 +19,7 @@ c
       real(kind=8) cpu_start, cpu_finish
       real(kind=8) cpu_startBound,cpu_finishBound
       real(kind=8) cpu_startStepgrid, cpu_finishStepgrid
-      real(kind=8) updateMax
+      real(kind=8) updateMax(3)
 
 c     maxgr is maximum number of grids  many things are
 c     dimensioned at, so this is overall. only 1d array
@@ -123,15 +123,12 @@ c   ! $OMP PARALLEL DO num_threads(nt)
           mjtot  = ny + 2*nghost
 c
           call par_advanc(mptr,mitot,mjtot,nvar,naux,dtnew,thisUpdate)
-          write(*,*)" in adv after par_adv for grid ",mptr,
-     .                " thisUpdate ",thisUpdate
 
 !$OMP CRITICAL (newdt)
           dtlevnew = dmin1(dtlevnew,dtnew)
           updateMax = max(updateMax,thisUpdate)
 !$OMP END CRITICAL (newdt)    
 
-       write(*,*)" after critical section updateMax ",updateMax
       end do
 !$OMP END PARALLEL DO
 c
@@ -143,6 +140,9 @@ c
       timeStepgridCPU=timeStepgridCPU+cpu_finish-cpu_startStepgrid
 
 c
+      write(*,600) updateMax, level
+ 600  format("updateMax ",3e10.3," for level ",i5)
+
       return
       end
 c
@@ -183,6 +183,7 @@ c
 
       double precision fp(nvar,mitot,mjtot),fm(nvar,mitot,mjtot)
       double precision gp(nvar,mitot,mjtot),gm(nvar,mitot,mjtot)
+      double precision thisUpdate(3)
 
 
 c
@@ -280,6 +281,5 @@ c        write(outunit,969) mythread,delt, dtnew
 c969     format(" thread ",i4," updated by ",e15.7, " new dt ",e15.7)
           rnode(timemult,mptr)  = rnode(timemult,mptr)+delt
 c
-      write(*,*)" updateMax ", updateMax," for level ",level 
       return
       end

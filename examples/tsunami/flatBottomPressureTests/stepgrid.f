@@ -41,7 +41,8 @@ c      parameter (mwork=msize*(maxvar*maxvar + 13*maxvar + 3*maxaux +2))
       dimension fp(nvar,mitot,mjtot),gp(nvar,mitot,mjtot)
       dimension fm(nvar,mitot,mjtot),gm(nvar,mitot,mjtot)
       dimension aux(maux,mitot,mjtot)
-c      dimension work(mwork)
+c      dimension work(mwork)      
+      dimension thisUpdateMax(3)
 
       logical :: debug = .false.
       logical :: dump = .false.
@@ -250,7 +251,7 @@ c            # no capa array.  Standard flux differencing:
      &           - dtdx * (fm(m,i+1,j) - fp(m,i,j))
      &           - dtdy * (gm(m,i,j+1) - gp(m,i,j))
            q(m,i,j) = q(m,i,j) + update
-           thisUpdateMax = max(thisUpdateMax, abs(update))
+           thisUpdateMax(m) = max(thisUpdateMax(m), abs(update))
  50       continue
          else
           do 51 j=mbc+1,mjtot-mbc
@@ -395,7 +396,7 @@ c            write(*,545) i,j,(q(i,j,ivar),ivar=1,nvar)
          end do
       endif
 c
-      write(*,*)"stepgrid thisUpdateMax ",thisUpdateMax," grid ",mptr
+c     write(*,*)"stepgrid thisUpdateMax ",thisUpdateMax," grid ",mptr
       return
       end
 
