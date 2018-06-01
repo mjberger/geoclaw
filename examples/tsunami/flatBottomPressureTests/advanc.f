@@ -19,6 +19,7 @@ c
       real(kind=8) cpu_start, cpu_finish
       real(kind=8) cpu_startBound,cpu_finishBound
       real(kind=8) cpu_startStepgrid, cpu_finishStepgrid
+      real(kind=8) updateMax
 
 c     maxgr is maximum number of grids  many things are
 c     dimensioned at, so this is overall. only 1d array
@@ -97,6 +98,8 @@ c      call fgrid_advance(time,delt)
 c 
       call system_clock(clock_startStepgrid,clock_rate)
       call cpu_time(cpu_startStepgrid)
+
+      updateMax = 0.d0
         
 c  set number of thrad to use. later will base on number of grids
 c     nt = 4
@@ -104,14 +107,13 @@ c   ! $OMP PARALLEL DO num_threads(nt)
 
 !$OMP PARALLEL DO 
 !$OMP&            PRIVATE(j,mptr,nx,ny,mitot,mjtot)  
-!$OMP&            PRIVATE(mythread,dtnew,levSt)
+!$OMP&            PRIVATE(mythread,dtnew,levSt,thisUpdate)
 !$OMP&            SHARED(rvol,rvoll,level,nvar,mxnest,alloc,intrat)
 !$OMP&            SHARED(nghost,intratx,intraty,hx,hy,naux,listsp)
 !$OMP&            SHARED(node,rnode,dtlevnew,numgrids)
-!$OMP&            SHARED(listStart,listOfGrids)
+!$OMP&            SHARED(listStart,listOfGrids,updateMax)
 !$OMP&            SCHEDULE (DYNAMIC,1)
 !$OMP&            DEFAULT(none)
-!$OMP&            REDUCTION(MAX:updateMax)
       do  j = 1, numgrids(level)
           levSt  = listStart(level)
           mptr   = listOfGrids(levSt+j-1)
@@ -121,12 +123,15 @@ c   ! $OMP PARALLEL DO num_threads(nt)
           mjtot  = ny + 2*nghost
 c
           call par_advanc(mptr,mitot,mjtot,nvar,naux,dtnew,thisUpdate)
+          write(*,*)" in adv after par_adv for grid ",mptr,
+     .                " thisUpdate ",thisUpdate
 
 !$OMP CRITICAL (newdt)
           dtlevnew = dmin1(dtlevnew,dtnew)
           updateMax = max(updateMax,thisUpdate)
 !$OMP END CRITICAL (newdt)    
 
+       write(*,*)" after critical section updateMax ",updateMax
       end do
 !$OMP END PARALLEL DO
 c
@@ -275,6 +280,6 @@ c        write(outunit,969) mythread,delt, dtnew
 c969     format(" thread ",i4," updated by ",e15.7, " new dt ",e15.7)
           rnode(timemult,mptr)  = rnode(timemult,mptr)+delt
 c
-      write(*,*) updateMax,"is max update for this step level ",level
+      write(*,*)" updateMax ", updateMax," for level ",level 
       return
       end

@@ -2,7 +2,7 @@ c
 c -------------------------------------------------------------
 c
       subroutine stepgrid(q,fm,fp,gm,gp,mitot,mjtot,mbc,dt,dtnew,dx,dy,
-     &                  nvar,xlow,ylow,time,mptr,maux,aux,updateMax)
+     &                  nvar,xlow,ylow,time,mptr,maux,aux,thisUpdateMax)
 c
 c
 c ::::::::::::::::::: STEPGRID ::::::::::::::::::::::::::::::::::::
@@ -238,7 +238,7 @@ c
 c       # update q
         dtdx = dt/dx
         dtdy = dt/dy
-        updateMax = 0.d0 !! keep track so know when reach steady state
+        thisUpdateMax = 0.d0 !! keep track so know when reach steady state
          if (mcapa.eq.0) then
           do 50 j=mbc+1,mjtot-mbc
           do 50 i=mbc+1,mitot-mbc
@@ -250,7 +250,7 @@ c            # no capa array.  Standard flux differencing:
      &           - dtdx * (fm(m,i+1,j) - fp(m,i,j))
      &           - dtdy * (gm(m,i,j+1) - gp(m,i,j))
            q(m,i,j) = q(m,i,j) + update
-           updateMax = max(updateMax, abs(update))
+           thisUpdateMax = max(thisUpdateMax, abs(update))
  50       continue
          else
           do 51 j=mbc+1,mjtot-mbc
@@ -261,7 +261,7 @@ c            # with capa array.
      &           - (dtdx * (fm(m,i+1,j) - fp(m,i,j))
      &           +  dtdy * (gm(m,i,j+1) - gp(m,i,j))) / aux(mcapa,i,j)
            q(m,i,j) = q(m,i,j) + update
-           update_max = max(update_max, abs(update))
+           thisUpdateMax = max(thisUpdateMax, abs(update))
  51       continue
 !           write(outunit,543) m,i,j,q(m,i,j),fm(m,i+1,j),fp(m,i,j),
 !     .        gm(m,i,j+1), gp(m,i,j)
