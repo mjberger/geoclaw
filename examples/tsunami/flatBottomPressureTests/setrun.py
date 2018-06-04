@@ -71,8 +71,8 @@ def setrun(claw_pkg='geoclaw'):
 
 
     # Number of grid cells: Coarsest grid
-    clawdata.num_cells[0] = 400
-    clawdata.num_cells[1] = 400
+    clawdata.num_cells[0] = 800
+    clawdata.num_cells[1] = 800
 
 
     # ---------------
@@ -102,7 +102,8 @@ def setrun(claw_pkg='geoclaw'):
     # restart_file 'fort.chkNNNNN' specified below should be in 
     # the OUTDIR indicated in Makefile.
 
-    clawdata.restart = True                # True to restart from prior results
+    #clawdata.restart = True                # True to restart from prior results
+    clawdata.restart = False               # True to restart from prior results
     #clawdata.restart_file = 'fort.chk03541'  # File to use for restart data
     clawdata.restart_file = 'fort.chk05000'  # File to use for restart data
 
@@ -334,6 +335,8 @@ def setrun(claw_pkg='geoclaw'):
         x = r + .001  # shift a bit away from cell corners
         y = .001
         rundata.gaugedata.gauges.append([gaugeno, x, y, 0., 1e10])
+
+    rundata.gaugedata.aux_out_fields = [1];
 
     # gauges along diagonal:
     #gaugeno = 100

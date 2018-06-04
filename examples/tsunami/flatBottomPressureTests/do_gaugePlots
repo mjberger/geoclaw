@@ -1,0 +1,38 @@
+#!/bin/csh
+
+#set USEDIR=./_output
+set USEDIR=./_output_h=1.km
+set USEDIR2=./_output_h=.5km
+
+xmgrace -block $USEDIR/gauge00001.txt -bxy 2:6 \
+     -block $USEDIR/gauge00002.txt -bxy 2:6  \
+     -block $USEDIR/gauge00003.txt -bxy 2:6 \
+     -block $USEDIR/gauge00004.txt -bxy 2:6 \
+     -block $USEDIR/gauge00005.txt -bxy 2:6 \
+     -block $USEDIR/gauge00006.txt -bxy 2:6  \
+     -block $USEDIR/gauge00007.txt -bxy 2:6  \
+     -block $USEDIR/gauge00008.txt -bxy 2:6  \
+     -block $USEDIR/gauge00009.txt -bxy 2:6  \
+     -block $USEDIR/gauge00010.txt -bxy 2:6 -free -noask -par gauge.par  \
+     -block $USEDIR2/gauge00001.txt -bxy 2:6 \
+     -block $USEDIR2/gauge00002.txt -bxy 2:6  \
+     -block $USEDIR2/gauge00003.txt -bxy 2:6 \
+     -block $USEDIR2/gauge00004.txt -bxy 2:6 \
+     -block $USEDIR2/gauge00005.txt -bxy 2:6 \
+     -block $USEDIR2/gauge00006.txt -bxy 2:6  \
+     -block $USEDIR2/gauge00007.txt -bxy 2:6  \
+     -block $USEDIR2/gauge00008.txt -bxy 2:6  \
+     -block $USEDIR2/gauge00009.txt -bxy 2:6  \
+     -block $USEDIR2/gauge00010.txt -bxy 2:6 -free -noask -par gauge.par  &
+
+xmgrace -block $USEDIR/gauge00001.txt -bxy 2:7 \
+     -block $USEDIR/gauge00002.txt -bxy 2:7  \
+     -block $USEDIR/gauge00003.txt -bxy 2:7 \
+     -block $USEDIR/gauge00004.txt -bxy 2:7 \
+     -block $USEDIR/gauge00005.txt -bxy 2:7 \
+     -block $USEDIR/gauge00006.txt -bxy 2:7  \
+     -block $USEDIR/gauge00007.txt -bxy 2:7  \
+     -block $USEDIR/gauge00008.txt -bxy 2:7  \
+     -block $USEDIR/gauge00009.txt -bxy 2:7  \
+     -block $USEDIR/gauge00010.txt -bxy 2:7 -free -noask -par press.par  &
+

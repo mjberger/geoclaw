@@ -126,7 +126,9 @@ c
 
 !$OMP CRITICAL (newdt)
           dtlevnew = dmin1(dtlevnew,dtnew)
-          updateMax = max(updateMax,thisUpdate)
+          updateMax(1) = max(updateMax(1),thisUpdate(1))
+          updateMax(2) = max(updateMax(2),thisUpdate(2))
+          updateMax(3) = max(updateMax(3),thisUpdate(3))
 !$OMP END CRITICAL (newdt)    
 
       end do
@@ -140,8 +142,8 @@ c
       timeStepgridCPU=timeStepgridCPU+cpu_finish-cpu_startStepgrid
 
 c
-      write(*,600) updateMax(1),updateMax(2),updateMax(3), level
- 600  format(3e10.3,i5)
+      write(*,600) updateMax(1),updateMax(2),updateMax(3),time,level
+ 600  format(3e10.3,e12.5,i5)
 
       return
       end
