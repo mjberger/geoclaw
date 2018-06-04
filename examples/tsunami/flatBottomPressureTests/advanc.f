@@ -19,7 +19,7 @@ c
       real(kind=8) cpu_start, cpu_finish
       real(kind=8) cpu_startBound,cpu_finishBound
       real(kind=8) cpu_startStepgrid, cpu_finishStepgrid
-      real(kind=8) updateMax(3)
+      real(kind=8) updateMax(3),thisUpdate(3)
 
 c     maxgr is maximum number of grids  many things are
 c     dimensioned at, so this is overall. only 1d array
@@ -140,8 +140,8 @@ c
       timeStepgridCPU=timeStepgridCPU+cpu_finish-cpu_startStepgrid
 
 c
-      write(*,600) updateMax, level
- 600  format("updateMax ",3e10.3," for level ",i5)
+      write(*,600) updateMax(1),updateMax(2),updateMax(3), level
+ 600  format(3e10.3,i5)
 
       return
       end

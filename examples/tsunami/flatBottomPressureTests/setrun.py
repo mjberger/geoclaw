@@ -60,15 +60,19 @@ def setrun(claw_pkg='geoclaw'):
     # Lower and upper edge of computational domain:
     clawdata.lower[0] = -100.0e3
     clawdata.upper[0] = 100.0e3
+    #clawdata.lower[0] = -200.0e3
+    #clawdata.upper[0] = 200.0e3
 
     clawdata.lower[1] = -100.0e3
     clawdata.upper[1] = 100.0e3
+    #clawdata.lower[1] = -200.0e3
+    #clawdata.upper[1] = 200.0e3
 
 
 
     # Number of grid cells: Coarsest grid
-    clawdata.num_cells[0] = 200
-    clawdata.num_cells[1] = 200
+    clawdata.num_cells[0] = 400
+    clawdata.num_cells[1] = 400
 
 
     # ---------------
@@ -98,8 +102,9 @@ def setrun(claw_pkg='geoclaw'):
     # restart_file 'fort.chkNNNNN' specified below should be in 
     # the OUTDIR indicated in Makefile.
 
-    clawdata.restart = False               # True to restart from prior results
-    clawdata.restart_file = 'fort.chk00006'  # File to use for restart data
+    clawdata.restart = True                # True to restart from prior results
+    #clawdata.restart_file = 'fort.chk03541'  # File to use for restart data
+    clawdata.restart_file = 'fort.chk05000'  # File to use for restart data
 
     # -------------
     # Output times:
@@ -113,8 +118,8 @@ def setrun(claw_pkg='geoclaw'):
 
     if clawdata.output_style==1:
         # Output nout frames at equally spaced times up to tfinal:
-        clawdata.num_output_times = 10
-        clawdata.tfinal = 4000.0
+        clawdata.num_output_times = 20
+        clawdata.tfinal = 22000.0
         clawdata.output_t0 = True  # output at initial (or restart) time?
 
     elif clawdata.output_style == 2:
@@ -168,7 +173,7 @@ def setrun(claw_pkg='geoclaw'):
     clawdata.cfl_max = 1.0
 
     # Maximum number of time steps to allow between output times:
-    clawdata.steps_max = 5000
+    clawdata.steps_max = 5000000
 
 
 
@@ -311,12 +316,12 @@ def setrun(claw_pkg='geoclaw'):
     regions = rundata.regiondata.regions
     # to specify regions of refinement append lines of the form
     #  [minlevel,maxlevel,t1,t2,x1,x2,y1,y2]
-    regions.append([1, 1, 0., 1.e10, -100.,100., -100.,100.])
-    regions.append([1, 2, 0., 1.e10,    0.,100.,    0.,100.])
-    regions.append([2, 3, 3., 1.e10,   52., 72.,   52., 72.])
-    regions.append([2, 3, 3., 1.e10,   75., 95.,   -10.,  10.])
-    regions.append([2, 4, 3.4, 1.e10,   57., 68.,   57., 68.])
-    regions.append([2, 4, 3.4, 1.e10,   83., 92.,   -4.,  4.])
+    #regions.append([1, 1, 0., 1.e10, -100.,100., -100.,100.])
+    #regions.append([1, 2, 0., 1.e10,    0.,100.,    0.,100.])
+    #regions.append([2, 3, 3., 1.e10,   52., 72.,   52., 72.])
+    #regions.append([2, 3, 3., 1.e10,   75., 95.,   -10.,  10.])
+    #regions.append([2, 4, 3.4, 1.e10,   57., 68.,   57., 68.])
+    #regions.append([2, 4, 3.4, 1.e10,   83., 92.,   -4.,  4.])
 
     # == setgauges.data values ==
     # for gauges append lines of the form  [gaugeno, x, y, t1, t2]
@@ -324,19 +329,19 @@ def setrun(claw_pkg='geoclaw'):
 
     # gauges along x-axis:
     gaugeno = 0
-    for r in np.linspace(86., 93., 9):
+    for r in np.linspace(0.0, 100000, 11):
         gaugeno = gaugeno+1
         x = r + .001  # shift a bit away from cell corners
         y = .001
         rundata.gaugedata.gauges.append([gaugeno, x, y, 0., 1e10])
 
     # gauges along diagonal:
-    gaugeno = 100
-    for r in np.linspace(86., 93., 9):
-        gaugeno = gaugeno+1
-        x = (r + .001) / np.sqrt(2.)
-        y = (r + .001) / np.sqrt(2.)
-        rundata.gaugedata.gauges.append([gaugeno, x, y, 0., 1e10])
+    #gaugeno = 100
+    #for r in np.linspace(86., 93., 9):
+    #    gaugeno = gaugeno+1
+    #    x = (r + .001) / np.sqrt(2.)
+    #    y = (r + .001) / np.sqrt(2.)
+    #    rundata.gaugedata.gauges.append([gaugeno, x, y, 0., 1e10])
     
 
     return rundata
