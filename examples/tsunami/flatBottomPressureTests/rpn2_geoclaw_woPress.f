@@ -123,10 +123,11 @@ c        !set normal direction
          bL = auxr(1,i-1)
          bR = auxl(1,i)
          if (pressure_forcing) then
-             pL = auxr(pressure_index, i-1)
-             pR = auxl(pressure_index, i)
-             !! for src terms instead of well balanced version set to 0
+             !!pL = auxr(pressure_index, i-1)
+             !!pR = auxl(pressure_index, i)
+             !! mjb:  for src terms instead of well balanced version set to 0
              !! uncomment next two lines
+             !! and change Makefile to use this version
              pL = 0.d0
              pR = 0.d0
          end if

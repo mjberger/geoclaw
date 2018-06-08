@@ -12,7 +12,7 @@ subroutine b4step2(mbc,mx,my,meqn,q,xlower,ylower,dx,dy,t,dt,maux,aux)
 !
 ! Also calls movetopo if topography might be moving.
 
-    use geoclaw_module, only: dry_tolerance
+    use geoclaw_module, only: dry_tolerance, ambient_pressure
     use geoclaw_module, only: g => grav
     use topo_module, only: num_dtopo,topotime
     use topo_module, only: aux_finalized
@@ -39,7 +39,7 @@ subroutine b4step2(mbc,mx,my,meqn,q,xlower,ylower,dx,dy,t,dt,maux,aux)
     integer :: index,i,j,k,dummy
     real(kind=8) :: h,u,v
 
-    real(kind=8) :: x,y,r,press,p_ambient
+    real(kind=8) :: x,y,r,press
 
     ! Check for NaNs in the solution
     call check4nans(meqn,mbc,mx,my,q,t,1)
@@ -62,8 +62,7 @@ subroutine b4step2(mbc,mx,my,meqn,q,xlower,ylower,dx,dy,t,dt,maux,aux)
 
     ! Set wind and pressure aux variables for this grid
     !call set_storm_fields(maux,mbc,mx,my,xlower,ylower,dx,dy,t,aux)
-    p_ambient = 101300.d0
-    press = .8d0*p_ambient
+    press = .8d0*ambient_pressure
     do i=1-mbc, mx+mbc
     do j=1-mbc, my+mbc
         x = xlower + (i+.5)*dx

@@ -48,6 +48,9 @@ EXCLUDE_SOURCES = \
 
 MODULES = \
 
+#  regular riemann solver including pressure in
+#  is in riemann/src/rpn2_geoclaw.f
+#  and then remove src2.f90
 SOURCES = \
   $(CLAW)/riemann/src/rpn2_geoclaw.f \
   $(CLAW)/riemann/src/rpt2_geoclaw.f \
@@ -55,6 +58,7 @@ SOURCES = \
   ./b4step2.f90 \
   ./stepgrid.f \
   ./advanc.f \
+  ./setaux.f90 \
 
 #-------------------------------------------------------------------
 # Include Makefile containing standard definitions and make options:
