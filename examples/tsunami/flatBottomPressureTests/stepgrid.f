@@ -43,6 +43,7 @@ c      parameter (mwork=msize*(maxvar*maxvar + 13*maxvar + 3*maxaux +2))
       dimension aux(maux,mitot,mjtot)
 c      dimension work(mwork)      
       dimension thisUpdateMax(3)
+      dimension updateArray(mitot,mjtot)
 
       logical :: debug = .false.
       logical :: dump = .false.
@@ -240,6 +241,8 @@ c       # update q
         dtdx = dt/dx
         dtdy = dt/dy
         thisUpdateMax = 0.d0 !! keep track so know when reach steady state
+        imax = -100
+        jmax = -100
          if (mcapa.eq.0) then
           do 50 j=mbc+1,mjtot-mbc
           do 50 i=mbc+1,mitot-mbc
@@ -251,7 +254,14 @@ c            # no capa array.  Standard flux differencing:
      &           - dtdx * (fm(m,i+1,j) - fp(m,i,j))
      &           - dtdy * (gm(m,i,j+1) - gp(m,i,j))
            q(m,i,j) = q(m,i,j) + update
-           thisUpdateMax(m) = max(thisUpdateMax(m), abs(update))
+           if (m .eq. 1) then
+             updateArray(i,j)  = abs(update)
+             if (abs(update) .gt. thisUpdateMax(m)) then
+                thisUpdateMax(m) = abs(update)
+                imax = i
+                jmax = j
+             endif
+           endif
  50       continue
          else
           do 51 j=mbc+1,mjtot-mbc
@@ -386,17 +396,35 @@ c
      &              '  on grid ',i3, ' level ',i3)
             endif
 c
-      if (dump) then
+      if (1==1 ) then
+         !! symmetry check
+         write(*,*)"Symmetry check time ",time
+         tol = 1.d-13
+         do i = mbc+1, mitot-mbc
+         do j = mbc+1, mjtot-mbc
+            diff =  abs(q(1,i,j) - q(1,j,i)) 
+            diff2 =  abs(q(1,mitot-i+1,j) - q(1,i,j)) 
+            diff3 =  abs(q(1,i,j) - q(1,i,mjtot-j+1)) 
+            if (diff.gt.tol .or. diff2.gt.tol .or. dif3.gt.tol) then
+             write(*,546) i,j,diff,diff2,diff3
+ 546        format("dif ",2i4,3e15.7)
+            endif
+         end do
+         end do
+      endif
+
+      if (0==1 .or. dump) then
          write(outunit,*)" at end of stepgrid: dumping grid ",mptr
          do i = mbc+1, mitot-mbc
          do j = mbc+1, mjtot-mbc
-            write(outunit,545) i,j,(q(ivar,i,j),ivar=1,nvar)
+            write(outunit,545) i,j,updateArray(i,j)
+            !write(outunit,545) i,j,(q(ivar,i,j),ivar=1,nvar)
 c            write(*,545) i,j,(q(i,j,ivar),ivar=1,nvar)
          end do
          end do
       endif
 c
-c     write(*,*)"stepgrid thisUpdateMax ",thisUpdateMax," grid ",mptr
+      write(*,*)"thisUpdateMax ",thisUpdateMax(1),imax,jmax
       return
       end
 
