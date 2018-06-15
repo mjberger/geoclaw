@@ -71,8 +71,8 @@ def setrun(claw_pkg='geoclaw'):
 
 
     # Number of grid cells: Coarsest grid
-    clawdata.num_cells[0] = 20
-    clawdata.num_cells[1] = 20
+    clawdata.num_cells[0] = 1600
+    clawdata.num_cells[1] = 1600
 
 
     # ---------------
@@ -105,7 +105,7 @@ def setrun(claw_pkg='geoclaw'):
     #clawdata.restart = True                # True to restart from prior results
     clawdata.restart = False               # True to restart from prior results
     #clawdata.restart_file = 'fort.chk03541'  # File to use for restart data
-    clawdata.restart_file = 'fort.chk39113'  # File to use for restart data
+    clawdata.restart_file = 'fort.chk26666'  # File to use for restart data
 
     # -------------
     # Output times:
@@ -132,8 +132,7 @@ def setrun(claw_pkg='geoclaw'):
         # Output every iout timesteps with a total of ntot time steps:
         factor = clawdata.num_cells[0]/200.0
         clawdata.output_step_interval = 0
-        #clawdata.total_steps = int(4889*factor)  + 1
-        clawdata.total_steps = 5 + int(4889*factor)  + 1
+        clawdata.total_steps = int(4889*factor)  + 1
         clawdata.output_t0 = False
         
 
@@ -169,6 +168,7 @@ def setrun(claw_pkg='geoclaw'):
     # If dt_variable==0 then dt=dt_initial for all steps:
     #clawdata.dt_initial = 0.016
     clawdata.dt_initial = 4.5/factor
+    clawdata.total_steps = 10 + int(1200000/clawdata.dt_initial)
 
     # Max time step to be allowed if variable dt used:
     clawdata.dt_max = 1e+99
@@ -211,7 +211,8 @@ def setrun(claw_pkg='geoclaw'):
     #   2 or 'superbee' ==> superbee
     #   3 or 'mc'       ==> MC limiter
     #   4 or 'vanleer'  ==> van Leer
-    clawdata.limiter = ['mc', 'mc', 'mc']
+    #clawdata.limiter = ['mc', 'mc', 'mc']
+    clawdata.limiter = ['none', 'none', 'none']
 
     clawdata.use_fwaves = True    # True ==> use f-wave version of algorithms
     

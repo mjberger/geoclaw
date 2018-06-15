@@ -38,6 +38,7 @@ c      parameter (msize=max1d+4)
 c      parameter (mwork=msize*(maxvar*maxvar + 13*maxvar + 3*maxaux +2))
 
       dimension q(nvar,mitot,mjtot)
+      dimension updateArray(nvar,mitot,mjtot)
       dimension fp(nvar,mitot,mjtot),gp(nvar,mitot,mjtot)
       dimension fm(nvar,mitot,mjtot),gm(nvar,mitot,mjtot)
       dimension aux(maux,mitot,mjtot)
@@ -254,6 +255,7 @@ c            # no capa array.  Standard flux differencing:
      &           - dtdx * (fm(m,ii+1,jj) - fp(m,ii,jj))
      &           - dtdy * (gm(m,ii,jj+1) - gp(m,ii,jj))
            q(m,ii,jj) = q(m,ii,jj) + update
+           updateArray(m,ii,jj) = update
              if (abs(update) .gt. thisUpdateMax(m)) then
                 thisUpdateMax(m) = abs(update)
                 if (m .eq. 1) then
@@ -395,7 +397,7 @@ c
      &              '  on grid ',i3, ' level ',i3)
             endif
 c
-      if (1==0 ) then
+      if (1==0 .or. debug) then
          !! symmetry check
          write(*,*)"Symmetry check time ",time
          tol = 1.d-13
