@@ -38,15 +38,16 @@ c      parameter (msize=max1d+4)
 c      parameter (mwork=msize*(maxvar*maxvar + 13*maxvar + 3*maxaux +2))
 
       dimension q(nvar,mitot,mjtot)
+      dimension updateArray(nvar,mitot,mjtot)
       dimension fp(nvar,mitot,mjtot),gp(nvar,mitot,mjtot)
       dimension fm(nvar,mitot,mjtot),gm(nvar,mitot,mjtot)
       dimension aux(maux,mitot,mjtot)
 c      dimension work(mwork)      
       dimension thisUpdateMax(3)
-      dimension updateArray(mitot,mjtot)
 
       logical :: debug = .false.
       logical :: dump = .false.
+      logical :: df1,df2,df3
 c
       tcfmax = -rinfinity
       level = node(nestlevel,mptr)
@@ -244,24 +245,24 @@ c       # update q
         imax = -100
         jmax = -100
          if (mcapa.eq.0) then
-          do 50 j=mbc+1,mjtot-mbc
-          do 50 i=mbc+1,mitot-mbc
+          do 50 jj=mbc+1,mjtot-mbc
+          do 50 ii=mbc+1,mitot-mbc
           do 50 m=1,nvar
 c
 c            # no capa array.  Standard flux differencing:
 
            update  = 
-     &           - dtdx * (fm(m,i+1,j) - fp(m,i,j))
-     &           - dtdy * (gm(m,i,j+1) - gp(m,i,j))
-           q(m,i,j) = q(m,i,j) + update
-           if (m .eq. 1) then
-             updateArray(i,j)  = abs(update)
+     &           - dtdx * (fm(m,ii+1,jj) - fp(m,ii,jj))
+     &           - dtdy * (gm(m,ii,jj+1) - gp(m,ii,jj))
+           q(m,ii,jj) = q(m,ii,jj) + update
+           updateArray(m,ii,jj) = update
              if (abs(update) .gt. thisUpdateMax(m)) then
                 thisUpdateMax(m) = abs(update)
-                imax = i
-                jmax = j
+                if (m .eq. 1) then
+                  imax = ii
+                  jmax = jj
+                endif
              endif
-           endif
  50       continue
          else
           do 51 j=mbc+1,mjtot-mbc
@@ -272,7 +273,7 @@ c            # with capa array.
      &           - (dtdx * (fm(m,i+1,j) - fp(m,i,j))
      &           +  dtdy * (gm(m,i,j+1) - gp(m,i,j))) / aux(mcapa,i,j)
            q(m,i,j) = q(m,i,j) + update
-           thisUpdateMax = max(thisUpdateMax, abs(update))
+           thisUpdateMax(m) = max(thisUpdateMax(m), abs(update))
  51       continue
 !           write(outunit,543) m,i,j,q(m,i,j),fm(m,i+1,j),fp(m,i,j),
 !     .        gm(m,i,j+1), gp(m,i,j)
@@ -396,18 +397,22 @@ c
      &              '  on grid ',i3, ' level ',i3)
             endif
 c
-      if (1==1 ) then
+      if (1==1) then
          !! symmetry check
          write(*,*)"Symmetry check time ",time
          tol = 1.d-13
-         do i = mbc+1, mitot-mbc
-         do j = mbc+1, mjtot-mbc
-            diff =  abs(q(1,i,j) - q(1,j,i)) 
-            diff2 =  abs(q(1,mitot-i+1,j) - q(1,i,j)) 
-            diff3 =  abs(q(1,i,j) - q(1,i,mjtot-j+1)) 
-            if (diff.gt.tol .or. diff2.gt.tol .or. dif3.gt.tol) then
-             write(*,546) i,j,diff,diff2,diff3
- 546        format("dif ",2i4,3e15.7)
+         do ii = mbc+1, mitot-mbc
+         do jj = mbc+1, mjtot-mbc
+            diff =  abs(q(1,ii,jj) - q(1,jj,ii)) 
+            diff2 =  abs(q(1,mitot-ii+1,jj) - q(1,ii,jj)) 
+            diff3 =  abs(q(1,ii,jj) - q(1,ii,mjtot-jj+1)) 
+            df1 = (diff .gt. tol)
+            df2 = (diff2 .gt. tol)
+            df3 = (diff3 .gt. tol)
+            !!if (diff.gt.tol .or. diff2.gt.tol .or. dif3.gt.tol) then
+            if (df1 .or. df2 .or. df3) then
+             write(*,546) ii,jj,diff,diff2,diff3
+ 546         format("dif ",2i4,3e15.7)
             endif
          end do
          end do
@@ -417,14 +422,14 @@ c
          write(outunit,*)" at end of stepgrid: dumping grid ",mptr
          do i = mbc+1, mitot-mbc
          do j = mbc+1, mjtot-mbc
-            write(outunit,545) i,j,updateArray(i,j)
+            write(outunit,545) i,j,(updateArray(ivar,i,j),ivar=1,nvar)
             !write(outunit,545) i,j,(q(ivar,i,j),ivar=1,nvar)
 c            write(*,545) i,j,(q(i,j,ivar),ivar=1,nvar)
          end do
          end do
       endif
 c
-      write(*,*)"thisUpdateMax ",thisUpdateMax(1),imax,jmax
+c     write(*,*)"thisUpdateMax ",thisUpdateMax(1),imax,jmax
       return
       end
 
