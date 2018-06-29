@@ -397,7 +397,7 @@ c
      &              '  on grid ',i3, ' level ',i3)
             endif
 c
-      if (1==1) then
+      if (0==1) then
          !! symmetry check
          write(*,*)"Symmetry check time ",time
          tol = 1.d-13

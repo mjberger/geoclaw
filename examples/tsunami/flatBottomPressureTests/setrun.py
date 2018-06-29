@@ -105,7 +105,7 @@ def setrun(claw_pkg='geoclaw'):
     #clawdata.restart = True                # True to restart from prior results
     clawdata.restart = False               # True to restart from prior results
     #clawdata.restart_file = 'fort.chk03541'  # File to use for restart data
-    clawdata.restart_file = 'fort.chk02444'  # File to use for restart data
+    clawdata.restart_file = 'fort.chk26666'  # File to use for restart data
 
     # -------------
     # Output times:
@@ -131,11 +131,12 @@ def setrun(claw_pkg='geoclaw'):
     elif clawdata.output_style == 3:
         # Output every iout timesteps with a total of ntot time steps:
         factor = clawdata.num_cells[0]/200.0
-        clawdata.output_step_interval = 0
+        clawdata.output_step_interval = 1
         #clawdata.total_steps = int(4889*factor)  + 1
-        #clawdata.total_steps = 20000
-        clawdata.total_steps = 2
-        clawdata.output_t0 = False
+        clawdata.total_steps = 10
+        #clawdata.total_steps = 2
+        #clawdata.output_t0 = False
+        clawdata.output_t0 = True 
         
 
     clawdata.output_format = 'ascii'      # 'ascii' or 'netcdf' 
@@ -170,7 +171,7 @@ def setrun(claw_pkg='geoclaw'):
     # If dt_variable==0 then dt=dt_initial for all steps:
     #clawdata.dt_initial = 0.016
     #clawdata.dt_initial = 4.5/factor
-    clawdata.dt_initial = .4*4.5/factor # because turned off corner coupling
+    clawdata.dt_initial = .25*4.5/factor # because turned off corner coupling
 
     # Max time step to be allowed if variable dt used:
     clawdata.dt_max = 1e+99
@@ -200,7 +201,7 @@ def setrun(claw_pkg='geoclaw'):
     #  0 or 'none'      ==> donor cell (only normal solver used)
     #  1 or 'increment' ==> corner transport of waves
     #  2 or 'all'       ==> corner transport of 2nd order corrections too
-    clawdata.transverse_waves = 1
+    clawdata.transverse_waves = 0
 
     # Number of waves in the Riemann solution:
     clawdata.num_waves = 3
@@ -338,11 +339,13 @@ def setrun(claw_pkg='geoclaw'):
 
     # gauges along x-axis:
     gaugeno = 0
-    for r in np.linspace(0.0, 100000, 11):
+    #for r in np.linspace(0.0, 100000, 11):
+    for r in np.arange(0.0, 100000, 10000):
         gaugeno = gaugeno+1
         x = r + .001  # shift a bit away from cell corners
         y = .001
         rundata.gaugedata.gauges.append([gaugeno, x, y, 0., 1e10])
+        rundata.gaugedata.gauges.append([gaugeno+20, x, x, 0., 1e10])
 
     rundata.gaugedata.aux_out_fields = [1];
 
