@@ -2,7 +2,7 @@
 subroutine qinit(meqn,mbc,mx,my,xlower,ylower,dx,dy,q,maux,aux)
     
     use qinit_module, only: qinit_type,add_perturbation
-    use geoclaw_module, only: sea_level,grav,rho_air
+    use geoclaw_module, only: sea_level,grav
     
     implicit none
     
@@ -18,7 +18,8 @@ subroutine qinit(meqn,mbc,mx,my,xlower,ylower,dx,dy,q,maux,aux)
     ! Set flat state based on sea_level
     q = 0.d0
     forall(i=1:mx, j=1:my)
-        q(1,i,j) = max(0.d0, sea_level - aux(1,i,j) - aux(2,i,j)/(rho_air*grav))
+        !q(1,i,j) = max(0.d0, sea_level - aux(1,i,j) - aux(2,i,j)/(1025.d0*grav))
+        q(1,i,j) = max(0.d0, sea_level - aux(1,i,j) )
     end forall
     
     ! Add perturbation to initial conditions

@@ -108,7 +108,7 @@ def setplot(plotdata=None):
     # Figure for zoom
     #-----------------------------------------
     plotfigure = plotdata.new_plotfigure(name='Zoom', figno=10)
-    #plotfigure.show = False
+    plotfigure.show = False
     plotfigure.kwargs = {'figsize':[12,7]}
 
     # Set up for axes in this figure:
@@ -162,7 +162,7 @@ def setplot(plotdata=None):
     plotitem.amr_contour_show = [0,0,1]  # show contours only on finest level
     plotitem.celledges_show = 0
     plotitem.patchedges_show = 0
-    plotitem.show = True
+    plotitem.show = False
 
     # Add dashed contour line for shoreline
     plotitem = plotaxes.new_plotitem(plot_type='2d_contour')
@@ -262,7 +262,7 @@ def setplot(plotdata=None):
     # Set up for axes in this figure:
     plotaxes = plotfigure.new_plotaxes()
     plotaxes.xlimits = 'auto'
-    plotaxes.ylimits = [-2.0, 2.0]
+    plotaxes.ylimits = 'auto'  # [-12.0, 2.0]
     plotaxes.title = 'Surface'
 
     # Plot surface as blue curve:
@@ -277,7 +277,8 @@ def setplot(plotdata=None):
         q = current_data.q
         h = q[0,:]
         eta = q[3,:]
-        topo = eta - h
+        #topo = eta - h
+        topo = (eta - h)/4000
         return topo
         
     plotitem.plot_var = gaugetopo
@@ -285,7 +286,7 @@ def setplot(plotdata=None):
     def add_zeroline(current_data):
         from pylab import plot, legend
         t = current_data.t
-        legend(('surface','topography'),loc='lower left')
+        legend(('surface','topography/4000'),loc='lower right')
         plot(t, 0*t, 'k')
 
     plotaxes.afteraxes = add_zeroline
@@ -314,13 +315,13 @@ def setplot(plotdata=None):
     # Scatter plot of surface for radially symmetric
     #-----------------------------------------
     plotfigure = plotdata.new_plotfigure(name='Scatter', figno=200)
-    plotfigure.show = False
+    plotfigure.show = True 
     # Note: will not look very good unless more of domain is refined
 
     # Set up for axes in this figure:
     plotaxes = plotfigure.new_plotaxes()
-    plotaxes.xlimits = [0., 100.]
-    plotaxes.ylimits = [-1.5, 2.]
+    plotaxes.xlimits = [0., 100000.]
+    plotaxes.ylimits = [-10.0, 5.]
     plotaxes.title = 'Scatter plot of surface'
 
     # Set up for item on these axes:
@@ -336,7 +337,7 @@ def setplot(plotdata=None):
     plotitem.map_2d_to_1d = q_vs_radius
     plotitem.plotstyle = 'o'
     plotitem.amr_color=['b','r','g']
-    plotaxes.afteraxes = "import pylab; pylab.legend(['Level 1','Level 2'])"
+    plotaxes.afteraxes = "import pylab; pylab.legend(['Level 1'])"
     
 
     #-----------------------------------------
@@ -347,7 +348,10 @@ def setplot(plotdata=None):
     plotdata.printfigs = True                # print figures
     plotdata.print_format = 'png'            # file format
     plotdata.print_framenos = 'all'          # list of frames to print
-    plotdata.print_gaugenos = [4,5,104,105]  # list of gauges to print
+    plotdata.print_gaugenos = [1,2,3,4,5,6,7,8,9,10] # list of gauges to print
+    #plotdata.print_gaugenos = 'all'          # list of gauges to print
+    #plotdata.print_gaugenos = [4,5,104,105]  # list of gauges to print
+    #plotdata.print_fignos = [0,200]            # list of figures to print
     plotdata.print_fignos = 'all'            # list of figures to print
     plotdata.html = True                     # create html files of plots?
     plotdata.html_homelink = '../README.html'   # pointer for top of index

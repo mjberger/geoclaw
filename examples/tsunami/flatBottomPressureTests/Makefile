@@ -55,7 +55,7 @@ MODULES = \
 SOURCES = \
   $(CLAW)/riemann/src/rpn2_geoclaw.f \
   $(CLAW)/riemann/src/rpt2_geoclaw.f \
-  $(CLAW)/riemann/src/geoclaw_riemann_utils.f \
+  ./geoclaw_riemann_utils.f \
   ./b4step2.f90 \
   ./stepgrid.f \
   ./advanc.f \
