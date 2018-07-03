@@ -1,39 +1,26 @@
 #!/bin/csh
 
-#set USEDIR=./_output
-set USEDIR=./_output_h=1km
-set USEDIR2=./_output_h=1km_fixedDt
-#set USEDIR=./_output_h=.5km
+#set USEDIR=./_output/
+set USEDIR=./_output_1600cells
 
 xmgrace -block $USEDIR/gauge00001.txt -bxy 2:6 \
      -block $USEDIR/gauge00002.txt -bxy 2:6  \
-     -block $USEDIR/gauge00003.txt -bxy 2:6 \
-     -block $USEDIR/gauge00004.txt -bxy 2:6 \
-     -block $USEDIR/gauge00005.txt -bxy 2:6 \
+     -block $USEDIR/gauge00003.txt -bxy 2:6  \
+     -block $USEDIR/gauge00004.txt -bxy 2:6  \
+     -block $USEDIR/gauge00005.txt -bxy 2:6  \
      -block $USEDIR/gauge00006.txt -bxy 2:6  \
      -block $USEDIR/gauge00007.txt -bxy 2:6  \
      -block $USEDIR/gauge00008.txt -bxy 2:6  \
      -block $USEDIR/gauge00009.txt -bxy 2:6  \
-     -block $USEDIR/gauge00010.txt -bxy 2:6 -free -noask -par gauge.par   \
-     -block $USEDIR2/gauge00001.txt -bxy 2:6 \
-     -block $USEDIR2/gauge00002.txt -bxy 2:6  \
-     -block $USEDIR2/gauge00003.txt -bxy 2:6 \
-     -block $USEDIR2/gauge00004.txt -bxy 2:6 \
-     -block $USEDIR2/gauge00005.txt -bxy 2:6 \
-     -block $USEDIR2/gauge00006.txt -bxy 2:6  \
-     -block $USEDIR2/gauge00007.txt -bxy 2:6  \
-     -block $USEDIR2/gauge00008.txt -bxy 2:6  \
-     -block $USEDIR2/gauge00009.txt -bxy 2:6  \
-     -block $USEDIR2/gauge00010.txt -bxy 2:6 -free -noask -par gauge.par  &
-
-xmgrace -block $USEDIR/gauge00001.txt -bxy 2:7 \
-     -block $USEDIR/gauge00002.txt -bxy 2:7  \
-     -block $USEDIR/gauge00003.txt -bxy 2:7 \
-     -block $USEDIR/gauge00004.txt -bxy 2:7 \
-     -block $USEDIR/gauge00005.txt -bxy 2:7 \
-     -block $USEDIR/gauge00006.txt -bxy 2:7  \
-     -block $USEDIR/gauge00007.txt -bxy 2:7  \
-     -block $USEDIR/gauge00008.txt -bxy 2:7  \
-     -block $USEDIR/gauge00009.txt -bxy 2:7  \
-     -block $USEDIR/gauge00010.txt -bxy 2:7 -free -noask -par press.par  &
+     -block $USEDIR/gauge00010.txt -bxy 2:6  \
+     -block $USEDIR/gauge00021.txt -bxy 2:6  \
+     -block $USEDIR/gauge00022.txt -bxy 2:6  \
+     -block $USEDIR/gauge00023.txt -bxy 2:6  \
+     -block $USEDIR/gauge00024.txt -bxy 2:6  \
+     -block $USEDIR/gauge00025.txt -bxy 2:6  \
+     -block $USEDIR/gauge00026.txt -bxy 2:6  \
+     -block $USEDIR/gauge00027.txt -bxy 2:6  \
+     -block $USEDIR/gauge00028.txt -bxy 2:6  \
+     -block $USEDIR/gauge00029.txt -bxy 2:6  \
+     -block $USEDIR/gauge00030.txt -bxy 2:6   -par gauge.par -free -noask   &
 

@@ -62,14 +62,16 @@ subroutine b4step2(mbc,mx,my,meqn,q,xlower,ylower,dx,dy,t,dt,maux,aux)
 
     ! Set wind and pressure aux variables for this grid
     !call set_storm_fields(maux,mbc,mx,my,xlower,ylower,dx,dy,t,aux)
-    press = .8d0*ambient_pressure
-    do i=1-mbc, mx+mbc
-    do j=1-mbc, my+mbc
-        x = xlower + (i-.5)*dx
-        y = ylower + (j-.5)*dy
-        r = dsqrt(x*x+y*y)
-        aux(pressure_index,i,j) = press * exp(-0.5d0*(r/10000)**2)
-    end do
-    end do
+    if (1==0) then
+       press = .8d0*ambient_pressure
+       do i=1-mbc, mx+mbc
+       do j=1-mbc, my+mbc
+           x = xlower + (i-.5)*dx
+           y = ylower + (j-.5)*dy
+           r = dsqrt(x*x+y*y)
+           aux(pressure_index,i,j) = press * exp(-0.5d0*(r/10000)**2)
+       end do
+       end do
+    endif
 
 end subroutine b4step2

@@ -143,8 +143,8 @@ c
 
 c
       write(*,600) updateMax(1),updateMax(2),updateMax(3),time,
-     .             possk(level)
- 600  format(3e10.3,2e12.5)
+     .             possk(level),cfl_level
+ 600  format(3e12.5,2e15.7,f7.3)
 
       return
       end

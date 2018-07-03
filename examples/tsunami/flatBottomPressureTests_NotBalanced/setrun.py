@@ -71,8 +71,8 @@ def setrun(claw_pkg='geoclaw'):
 
 
     # Number of grid cells: Coarsest grid
-    clawdata.num_cells[0] = 1600
-    clawdata.num_cells[1] = 1600
+    clawdata.num_cells[0] = 1200
+    clawdata.num_cells[1] = 1200
 
 
     # ---------------
@@ -130,10 +130,12 @@ def setrun(claw_pkg='geoclaw'):
 
     elif clawdata.output_style == 3:
         # Output every iout timesteps with a total of ntot time steps:
-        factor = clawdata.num_cells[0]/200.0
-        clawdata.output_step_interval = 0
-        clawdata.total_steps = int(4889*factor)  + 1
+        factor = clawdata.num_cells[0]/400.0
+        clawdata.output_step_interval = 20000000
+        #clawdata.total_steps = int(4889*factor)  + 1
+        clawdata.total_steps = 30000*factor
         clawdata.output_t0 = False
+        #clawdata.output_t0 = True 
         
 
     clawdata.output_format = 'ascii'      # 'ascii' or 'netcdf' 
@@ -167,8 +169,8 @@ def setrun(claw_pkg='geoclaw'):
     # Initial time step for variable dt.
     # If dt_variable==0 then dt=dt_initial for all steps:
     #clawdata.dt_initial = 0.016
-    clawdata.dt_initial = 4.5/factor
-    clawdata.total_steps = 10 + int(1200000/clawdata.dt_initial)
+    clawdata.dt_initial = .5*4.5/factor
+    #clawdata.dt_initial = 4.5/factor # because turned off corner coupling
 
     # Max time step to be allowed if variable dt used:
     clawdata.dt_max = 1e+99
@@ -336,11 +338,14 @@ def setrun(claw_pkg='geoclaw'):
 
     # gauges along x-axis:
     gaugeno = 0
-    for r in np.linspace(0.0, 100000, 11):
+    #for r in np.linspace(0.0, 100000, 11):
+    for r in np.arange(0.0, 100000, 10000):
         gaugeno = gaugeno+1
         x = r + .001  # shift a bit away from cell corners
         y = .001
+        xdivsqrt2 = x/np.sqrt(2)
         rundata.gaugedata.gauges.append([gaugeno, x, y, 0., 1e10])
+        rundata.gaugedata.gauges.append([gaugeno+20, xdivsqrt2, xdivsqrt2, 0., 1e10])
 
     rundata.gaugedata.aux_out_fields = [1];
 

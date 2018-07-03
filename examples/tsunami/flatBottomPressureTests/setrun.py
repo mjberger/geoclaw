@@ -71,8 +71,8 @@ def setrun(claw_pkg='geoclaw'):
 
 
     # Number of grid cells: Coarsest grid
-    clawdata.num_cells[0] = 200
-    clawdata.num_cells[1] = 200
+    clawdata.num_cells[0] = 1200
+    clawdata.num_cells[1] = 1200
 
 
     # ---------------
@@ -105,7 +105,7 @@ def setrun(claw_pkg='geoclaw'):
     #clawdata.restart = True                # True to restart from prior results
     clawdata.restart = False               # True to restart from prior results
     #clawdata.restart_file = 'fort.chk03541'  # File to use for restart data
-    clawdata.restart_file = 'fort.chk26666'  # File to use for restart data
+    clawdata.restart_file = 'fort.chk30000'  # File to use for restart data
 
     # -------------
     # Output times:
@@ -130,13 +130,12 @@ def setrun(claw_pkg='geoclaw'):
 
     elif clawdata.output_style == 3:
         # Output every iout timesteps with a total of ntot time steps:
-        factor = clawdata.num_cells[0]/200.0
-        clawdata.output_step_interval = 1000
+        factor = clawdata.num_cells[0]/400.0
+        clawdata.output_step_interval = 20000000
         #clawdata.total_steps = int(4889*factor)  + 1
-        clawdata.total_steps = 20000
-        #clawdata.total_steps = 2
-        #clawdata.output_t0 = False
-        clawdata.output_t0 = True 
+        clawdata.total_steps = 30000*factor
+        clawdata.output_t0 = False
+        #clawdata.output_t0 = True 
         
 
     clawdata.output_format = 'ascii'      # 'ascii' or 'netcdf' 
@@ -170,8 +169,8 @@ def setrun(claw_pkg='geoclaw'):
     # Initial time step for variable dt.
     # If dt_variable==0 then dt=dt_initial for all steps:
     #clawdata.dt_initial = 0.016
-    #clawdata.dt_initial = 4.5/factor
-    clawdata.dt_initial = .25*4.5/factor # because turned off corner coupling
+    clawdata.dt_initial = .5*4.5/factor
+    #clawdata.dt_initial = 4.5/factor # because turned off corner coupling
 
     # Max time step to be allowed if variable dt used:
     clawdata.dt_max = 1e+99
@@ -192,7 +191,7 @@ def setrun(claw_pkg='geoclaw'):
     # ------------------
 
     # Order of accuracy:  1 => Godunov,  2 => Lax-Wendroff plus limiters
-    clawdata.order = 1
+    clawdata.order = 2
     
     # Use dimensional splitting? (not yet available for AMR)
     clawdata.dimensional_split = 'unsplit'
@@ -201,7 +200,7 @@ def setrun(claw_pkg='geoclaw'):
     #  0 or 'none'      ==> donor cell (only normal solver used)
     #  1 or 'increment' ==> corner transport of waves
     #  2 or 'all'       ==> corner transport of 2nd order corrections too
-    clawdata.transverse_waves = 0
+    clawdata.transverse_waves = 2
 
     # Number of waves in the Riemann solution:
     clawdata.num_waves = 3
@@ -344,8 +343,9 @@ def setrun(claw_pkg='geoclaw'):
         gaugeno = gaugeno+1
         x = r + .001  # shift a bit away from cell corners
         y = .001
+        xdivsqrt2 = x/np.sqrt(2)
         rundata.gaugedata.gauges.append([gaugeno, x, y, 0., 1e10])
-        rundata.gaugedata.gauges.append([gaugeno+20, x, x, 0., 1e10])
+        rundata.gaugedata.gauges.append([gaugeno+20, xdivsqrt2, xdivsqrt2, 0., 1e10])
 
     rundata.gaugedata.aux_out_fields = [1];
 

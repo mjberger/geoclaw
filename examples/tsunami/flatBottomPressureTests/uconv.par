@@ -63,7 +63,7 @@ timestamp color 1
 timestamp rot 0
 timestamp font 0
 timestamp char size 1.000000
-timestamp def "Fri Jun 29 14:59:43 2018"
+timestamp def "Mon Jul  2 15:20:45 2018"
 r0 off
 link r0 to g0
 r0 type above
@@ -110,7 +110,7 @@ g0 fixedpoint xy 0.000000, 0.000000
 g0 fixedpoint format general general
 g0 fixedpoint prec 6, 6
 with g0
-    world 0, 1e-05, 20000, 100
+    world 0, 1e-10, 70000, 100
     stack world 0, 0, 0, 0
     znorm 1
     view 0.115909, 0.153938, 0.888636, 0.872319
@@ -118,7 +118,7 @@ with g0
     title font 0
     title size 1.500000
     title color 1
-    subtitle "u momentum"
+    subtitle "u momentum convergence"
     subtitle font 0
     subtitle size 1.000000
     subtitle color 1
@@ -141,7 +141,7 @@ with g0
     xaxis  label color 1
     xaxis  label place normal
     xaxis  tick on
-    xaxis  tick major 5000
+    xaxis  tick major 10000
     xaxis  tick minor ticks 4
     xaxis  tick default 6
     xaxis  tick place rounded true
@@ -255,7 +255,7 @@ with g0
     frame background pattern 0
     s0 hidden false
     s0 type xy
-    s0 symbol 3
+    s0 symbol 0
     s0 symbol size 0.250000
     s0 symbol color 1
     s0 symbol pattern 1
@@ -266,7 +266,7 @@ with g0
     s0 symbol char 65
     s0 symbol char font 0
     s0 symbol skip 0
-    s0 line type 0
+    s0 line type 1
     s0 line linestyle 1
     s0 line linewidth 2.0
     s0 line color 1
@@ -301,4 +301,200 @@ with g0
     s0 errorbar riser clip off
     s0 errorbar riser clip length 0.100000
     s0 comment "Cols 4:2"
-    s0 legend  ""
+    s0 legend  "200 cells"
+    s1 hidden false
+    s1 type xy
+    s1 symbol 0
+    s1 symbol size 0.250000
+    s1 symbol color 2
+    s1 symbol pattern 1
+    s1 symbol fill color 2
+    s1 symbol fill pattern 1
+    s1 symbol linewidth 1.0
+    s1 symbol linestyle 1
+    s1 symbol char 65
+    s1 symbol char font 0
+    s1 symbol skip 0
+    s1 line type 1
+    s1 line linestyle 1
+    s1 line linewidth 2.0
+    s1 line color 2
+    s1 line pattern 1
+    s1 baseline type 0
+    s1 baseline off
+    s1 dropline off
+    s1 fill type 0
+    s1 fill rule 0
+    s1 fill color 1
+    s1 fill pattern 1
+    s1 avalue off
+    s1 avalue type 2
+    s1 avalue char size 1.000000
+    s1 avalue font 0
+    s1 avalue color 1
+    s1 avalue rot 0
+    s1 avalue format general
+    s1 avalue prec 3
+    s1 avalue prepend ""
+    s1 avalue append ""
+    s1 avalue offset 0.000000 , 0.000000
+    s1 errorbar on
+    s1 errorbar place both
+    s1 errorbar color 2
+    s1 errorbar pattern 1
+    s1 errorbar size 1.000000
+    s1 errorbar linewidth 1.0
+    s1 errorbar linestyle 1
+    s1 errorbar riser linewidth 1.0
+    s1 errorbar riser linestyle 1
+    s1 errorbar riser clip off
+    s1 errorbar riser clip length 0.100000
+    s1 comment "Cols 4:2"
+    s1 legend  "400 cells"
+    s2 hidden false
+    s2 type xy
+    s2 symbol 0
+    s2 symbol size 0.250000
+    s2 symbol color 3
+    s2 symbol pattern 1
+    s2 symbol fill color 3
+    s2 symbol fill pattern 1
+    s2 symbol linewidth 1.0
+    s2 symbol linestyle 1
+    s2 symbol char 65
+    s2 symbol char font 0
+    s2 symbol skip 0
+    s2 line type 1
+    s2 line linestyle 1
+    s2 line linewidth 2.0
+    s2 line color 3
+    s2 line pattern 1
+    s2 baseline type 0
+    s2 baseline off
+    s2 dropline off
+    s2 fill type 0
+    s2 fill rule 0
+    s2 fill color 1
+    s2 fill pattern 1
+    s2 avalue off
+    s2 avalue type 2
+    s2 avalue char size 1.000000
+    s2 avalue font 0
+    s2 avalue color 1
+    s2 avalue rot 0
+    s2 avalue format general
+    s2 avalue prec 3
+    s2 avalue prepend ""
+    s2 avalue append ""
+    s2 avalue offset 0.000000 , 0.000000
+    s2 errorbar on
+    s2 errorbar place both
+    s2 errorbar color 3
+    s2 errorbar pattern 1
+    s2 errorbar size 1.000000
+    s2 errorbar linewidth 1.0
+    s2 errorbar linestyle 1
+    s2 errorbar riser linewidth 1.0
+    s2 errorbar riser linestyle 1
+    s2 errorbar riser clip off
+    s2 errorbar riser clip length 0.100000
+    s2 comment "Cols 4:2"
+    s2 legend  "800 cells"
+    s3 hidden false
+    s3 type xy
+    s3 symbol 0
+    s3 symbol size 1.000000
+    s3 symbol color 4
+    s3 symbol pattern 1
+    s3 symbol fill color 4
+    s3 symbol fill pattern 0
+    s3 symbol linewidth 1.0
+    s3 symbol linestyle 0
+    s3 symbol char 65
+    s3 symbol char font 0
+    s3 symbol skip 0
+    s3 line type 1
+    s3 line linestyle 1
+    s3 line linewidth 2.0
+    s3 line color 4
+    s3 line pattern 1
+    s3 baseline type 0
+    s3 baseline off
+    s3 dropline off
+    s3 fill type 0
+    s3 fill rule 0
+    s3 fill color 1
+    s3 fill pattern 1
+    s3 avalue off
+    s3 avalue type 2
+    s3 avalue char size 1.000000
+    s3 avalue font 0
+    s3 avalue color 1
+    s3 avalue rot 0
+    s3 avalue format general
+    s3 avalue prec 3
+    s3 avalue prepend ""
+    s3 avalue append ""
+    s3 avalue offset 0.000000 , 0.000000
+    s3 errorbar on
+    s3 errorbar place both
+    s3 errorbar color 4
+    s3 errorbar pattern 1
+    s3 errorbar size 1.000000
+    s3 errorbar linewidth 1.0
+    s3 errorbar linestyle 0
+    s3 errorbar riser linewidth 1.0
+    s3 errorbar riser linestyle 0
+    s3 errorbar riser clip off
+    s3 errorbar riser clip length 0.100000
+    s3 comment "Cols 4:2"
+    s3 legend  "1200 cells"
+    s4 hidden false
+    s4 type xy
+    s4 symbol 0
+    s4 symbol size 1.000000
+    s4 symbol color 10
+    s4 symbol pattern 1
+    s4 symbol fill color 10
+    s4 symbol fill pattern 0
+    s4 symbol linewidth 1.0
+    s4 symbol linestyle 0
+    s4 symbol char 65
+    s4 symbol char font 0
+    s4 symbol skip 0
+    s4 line type 1
+    s4 line linestyle 1
+    s4 line linewidth 2.0
+    s4 line color 10
+    s4 line pattern 1
+    s4 baseline type 0
+    s4 baseline off
+    s4 dropline off
+    s4 fill type 0
+    s4 fill rule 0
+    s4 fill color 1
+    s4 fill pattern 1
+    s4 avalue off
+    s4 avalue type 2
+    s4 avalue char size 1.000000
+    s4 avalue font 0
+    s4 avalue color 1
+    s4 avalue rot 0
+    s4 avalue format general
+    s4 avalue prec 3
+    s4 avalue prepend ""
+    s4 avalue append ""
+    s4 avalue offset 0.000000 , 0.000000
+    s4 errorbar on
+    s4 errorbar place both
+    s4 errorbar color 10
+    s4 errorbar pattern 1
+    s4 errorbar size 1.000000
+    s4 errorbar linewidth 1.0
+    s4 errorbar linestyle 0
+    s4 errorbar riser linewidth 1.0
+    s4 errorbar riser linestyle 0
+    s4 errorbar riser clip off
+    s4 errorbar riser clip length 0.100000
+    s4 comment "Cols 4:2"
+    s4 legend  "1600 cells"

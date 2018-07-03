@@ -64,7 +64,7 @@ def setplot(plotdata=None):
     plotaxes = plotfigure.new_plotaxes()
     plotaxes.title = "Currents"
     plotaxes.scaled = True
-    surgeplot.add_speed(plotaxes, bounds=[0.0, 1e-1])
+    surgeplot.add_speed(plotaxes, bounds=[0.0, 1e-5])
 
     # Pressure field
     plotfigure = plotdata.new_plotfigure(name='Pressure', figno=2)
@@ -123,7 +123,8 @@ def setplot(plotdata=None):
     plotdata.printfigs = True                # print figures
     plotdata.print_format = 'png'            # file format
     #plotdata.print_framenos = 'all'          # list of frames to print
-    plotdata.print_framenos = range(0,121)       # list of frames to print
+    #plotdata.print_framenos = range(0,121)       # list of frames to print
+    plotdata.print_framenos = range(0,121,10)       # list of frames to print
     plotdata.print_gaugenos = 'all'  # list of gauges to print
     plotdata.print_fignos = 'all'            # list of figures to print
     plotdata.html = True                     # create html files of plots?
