@@ -86,7 +86,7 @@ module bouss_module
 
 contains
 
-    subroutine set_bouss(rest)
+    subroutine set_bouss(rest,naux)
 
     ! Set Bparam and bc choices for Boussinesq implicit solver
 
@@ -96,7 +96,7 @@ contains
     use amr_module, only: mthbc, outunit
     implicit none
     logical rest
-    integer iunit,i
+    integer iunit,i,naux
     character(len=25) fname
 
 #ifdef WHERE_AM_I
@@ -251,6 +251,10 @@ contains
     !if (mthbc(1)==3) bc_xlo = 1
     !if (mthbc(2)==3) bc_xhi = 1
     !write(6,*) 'For plane wave in y-direction, using Neumann at left,right'
+
+    if (rest) then ! set up stuff for restart since not saved
+       call resetBoussStuff(naux)
+    endif
 
 #ifdef WHERE_AM_I
     write(*,*) 'ending   set_bouss'

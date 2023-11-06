@@ -14,10 +14,13 @@ CLAWMAKE = $(CLAW)/clawutil/src/Makefile.common
 CLAW_PKG = geoclaw                  # Clawpack package to use
 
 #PETSC_DIR=/Users/rjl/git/Clones/petsc
-#PETSC_ARCH=$(PETSC_DIR)/arch-darwin-c-opt
 #PETSC_OPTIONS=-options_file $(PETSC_DIR)/petscMPIoptions # from MJB
+PETSC_DIR=/Users/berger/petsc
+#PETSC_ARCH=$(PETSC_DIR)/arch-darwin-c-opt
+PETSC_ARCH=$(PETSC_DIR)/arch-mpi-opt
 
 EXE = $(PWD)/xgeoclaw
+#RUNEXE="${EXE}"
 RUNEXE="${PETSC_ARCH}/bin/mpiexec -n 6 ${EXE}"
 SETRUN_FILE = setrun.py           # File containing function to make data
 OUTDIR = _output                  # Directory for output
@@ -31,11 +34,13 @@ PLOTDIR = _plots                  # Directory for plots
 FC = gfortran
 INCLUDE += $(PETSC_DIR)/include
 INCLUDE += $(PETSC_ARCH)/include         
-FFLAGS =  -DHAVE_PETSC  -gno-strict-dwarf -fbounds-check -fopenmp \
-      -ffree-line-length-none -std=legacy
-LFLAGS ?=
+FFLAGS = -O  -DHAVE_PETSC  -gno-strict-dwarf -fbounds-check  \
+      -ffree-line-length-none -std=legacy -ffpe-trap='invalid,overflow,zero'
+LFLAGS ?= -fopenmp
+LFLAGS += -g -ld64 
 LFLAGS += -fopenmp
-LFLAGS += -Wl,-rpath,/Users/rjl/git/Clones/petsc/arch-darwin-c-opt/lib -Wl,-rpath,/Users/rjl/git/Clones/petsc/arch-darwin-c-opt/lib -L/Users/rjl/git/Clones/petsc/arch-darwin-c-opt/lib -Wl,-rpath,/Users/rjl/git/Clones/petsc/arch-darwin-c-opt/lib -L/Users/rjl/git/Clones/petsc/arch-darwin-c-opt/lib -Wl,-rpath,/opt/homebrew/Cellar/gcc/12.2.0/lib/gcc/current/gcc/aarch64-apple-darwin21/12 -L/opt/homebrew/Cellar/gcc/12.2.0/lib/gcc/current/gcc/aarch64-apple-darwin21/12 -Wl,-rpath,/opt/homebrew/Cellar/gcc/12.2.0/lib/gcc/current/gcc -L/opt/homebrew/Cellar/gcc/12.2.0/lib/gcc/current/gcc -Wl,-rpath,/opt/homebrew/Cellar/gcc/12.2.0/lib/gcc/current -L/opt/homebrew/Cellar/gcc/12.2.0/lib/gcc/current -lpetsc -llapack -lblas -lc++ -ldl -lmpifort -lmpi -lpmpi -lgfortran -lemutls_w -lquadmath -lc++ -ldl
+#LFLAGS += -Wl,-rpath,/Users/rjl/git/Clones/petsc/arch-darwin-c-opt/lib -Wl,-rpath,/Users/rjl/git/Clones/petsc/arch-darwin-c-opt/lib -L/Users/rjl/git/Clones/petsc/arch-darwin-c-opt/lib -Wl,-rpath,/Users/rjl/git/Clones/petsc/arch-darwin-c-opt/lib -L/Users/rjl/git/Clones/petsc/arch-darwin-c-opt/lib -Wl,-rpath,/opt/homebrew/Cellar/gcc/12.2.0/lib/gcc/current/gcc/aarch64-apple-darwin21/12 -L/opt/homebrew/Cellar/gcc/12.2.0/lib/gcc/current/gcc/aarch64-apple-darwin21/12 -Wl,-rpath,/opt/homebrew/Cellar/gcc/12.2.0/lib/gcc/current/gcc -L/opt/homebrew/Cellar/gcc/12.2.0/lib/gcc/current/gcc -Wl,-rpath,/opt/homebrew/Cellar/gcc/12.2.0/lib/gcc/current -L/opt/homebrew/Cellar/gcc/12.2.0/lib/gcc/current -lpetsc -llapack -lblas -lc++ -ldl -lmpifort -lmpi -lpmpi -lgfortran -lemutls_w -lquadmath -lc++ -ldl
+LFLAGS +=   -Wl,-rpath,$(PETSC_ARCH)/lib -L$(PETSC_ARCH)/lib -Wl,-rpath,/opt/X11/lib -L/opt/X11/lib -Wl,-rpath,/opt/intel/compilers_and_libraries_2020.2.258/mac/ipp/lib -L/opt/intel/compilers_and_libraries_2020.2.258/mac/ipp/lib -Wl,-rpath,/opt/intel/compilers_and_libraries_2020.2.258/mac/compiler/lib -L/opt/intel/compilers_and_libraries_2020.2.258/mac/compiler/lib -Wl,-rpath,/opt/intel/compilers_and_libraries_2020.2.258/mac/mkl/lib -L/opt/intel/compilers_and_libraries_2020.2.258/mac/mkl/lib -Wl,-rpath,/opt/intel/compilers_and_libraries_2020.2.258/mac/tbb/lib -L/opt/intel/compilers_and_libraries_2020.2.258/mac/tbb/lib -Wl,-rpath,/opt/intel/compilers_and_libraries_2020.2.258/mac/daal/lib -L/opt/intel/compilers_and_libraries_2020.2.258/mac/daal/lib -Wl,-rpath,/usr/local/Cellar/gcc@8/8.4.0_2/lib/gcc/8/gcc/x86_64-apple-darwin19/8.4.0 -L/usr/local/Cellar/gcc@8/8.4.0_2/lib/gcc/8/gcc/x86_64-apple-darwin19/8.4.0 -Wl,-rpath,/usr/local/Cellar/gcc@8/8.4.0_2/lib/gcc/8 -L/usr/local/Cellar/gcc@8/8.4.0_2/lib/gcc/8 -lpetsc -llapack -lblas -lX11 -ldl -lgfortran -lquadmath -lm -lquadmath -ldl
 
 
 
@@ -47,8 +52,10 @@ LFLAGS += -Wl,-rpath,/Users/rjl/git/Clones/petsc/arch-darwin-c-opt/lib -Wl,-rpat
 #BOUSSLIB = $(CLAW)/geoclaw/src/2d/bouss
 
 # for testing:
-GEOLIB = /Users/rjl/clawpack_src/clawpack_bouss/geoclaw/src/2d/shallow
-BOUSSLIB = /Users/rjl/clawpack_src/clawpack_bouss/geoclaw/src/2d/bouss
+#GEOLIB = /Users/rjl/clawpack_src/clawpack_bouss/geoclaw/src/2d/shallow
+#BOUSSLIB = /Users/rjl/clawpack_src/clawpack_bouss/geoclaw/src/2d/bouss
+GEOLIB = /Users/berger/clawpack_bouss/geoclaw/src/2d/shallow
+BOUSSLIB = /Users/berger/clawpack_bouss/geoclaw/src/2d/bouss
 
 include $(BOUSSLIB)/Makefile.bouss
 
@@ -72,9 +79,6 @@ MODULES = \
 SOURCES = \
   ./qinit.f90 \
   ./flag2refine2.f90 \
-  $(CLAW)/riemann/src/rpn2_geoclaw.f \
-  $(CLAW)/riemann/src/rpt2_geoclaw.f \
-  $(CLAW)/riemann/src/geoclaw_riemann_utils.f \
 
 
 

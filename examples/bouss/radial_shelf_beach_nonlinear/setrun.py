@@ -119,8 +119,9 @@ def setrun(claw_pkg='geoclaw'):
     # restart_file 'fort.chkNNNNN' specified below should be in 
     # the OUTDIR indicated in Makefile.
 
-    clawdata.restart = False               # True to restart from prior results
-    clawdata.restart_file = 'fort.chk00225'  # File to use for restart data
+    #clawdata.restart = True              # True to restart from prior results
+    clawdata.restart = False            # True to restart from prior results
+    clawdata.restart_file = 'fort.chk00002'  # File to use for restart data
     
     
     # -------------
@@ -152,7 +153,7 @@ def setrun(claw_pkg='geoclaw'):
     elif clawdata.output_style == 3:
         # Output every iout timesteps with a total of ntot time steps:
         clawdata.output_step_interval = 1
-        clawdata.total_steps = 10
+        clawdata.total_steps = 20
         clawdata.output_t0 = True
         #clawdata.output_t0 = False
         
@@ -172,7 +173,7 @@ def setrun(claw_pkg='geoclaw'):
     # The current t, dt, and cfl will be printed every time step
     # at AMR levels <= verbosity.  Set verbosity = 0 for no printing.
     #   (E.g. verbosity == 2 means print only on levels 1 and 2.)
-    clawdata.verbosity = 1
+    clawdata.verbosity = 2
 
 
 
@@ -275,7 +276,7 @@ def setrun(claw_pkg='geoclaw'):
     # Specify when checkpoint files should be created that can be
     # used to restart a computation.
 
-    clawdata.checkpt_style = 1
+    clawdata.checkpt_style = 3
 
     if clawdata.checkpt_style == 0:
         # Do not checkpoint at all
@@ -292,7 +293,7 @@ def setrun(claw_pkg='geoclaw'):
     elif np.abs(clawdata.checkpt_style) == 3:
         # Checkpoint every checkpt_interval timesteps (on Level 1)
         # and at the final time.
-        clawdata.checkpt_interval = 50
+        clawdata.checkpt_interval = 1
 
 
     # ---------------
@@ -304,7 +305,7 @@ def setrun(claw_pkg='geoclaw'):
     amrdata.max1d = 1000
 
     # max number of refinement levels:
-    amrdata.amr_levels_max = 3
+    amrdata.amr_levels_max = 2
 
     # List of refinement ratios at each level (length at least amr_level_max-1)
     # 2km, 500m, 100m, 10m, 5m
@@ -331,7 +332,8 @@ def setrun(claw_pkg='geoclaw'):
     # and flag2refine_tol is unused!
 
     # steps to take on each level L between regriddings of level L+1:
-    amrdata.regrid_interval = 2
+    #amrdata.regrid_interval = 2
+    amrdata.regrid_interval = 200000
 
     # width of buffer zone around flagged points:
     # (typically the same as regrid_interval so waves don't escape):
@@ -342,7 +344,7 @@ def setrun(claw_pkg='geoclaw'):
     amrdata.clustering_cutoff = 0.7
 
     # print info about each regridding up to this level:
-    amrdata.verbosity_regrid = 0      
+    amrdata.verbosity_regrid = 2      
 
 
     # ---------------

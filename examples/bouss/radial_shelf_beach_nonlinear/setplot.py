@@ -15,7 +15,8 @@ import os,sys
 
 from importlib import reload
 from six.moves import range
-from clawpack.geoclaw_1d.nonuniform_grid_tools import make_mapc2p
+#from clawpack.geoclaw_1d.nonuniform_grid_tools import make_mapc2p
+from clawpack.geoclaw.nonuniform_grid_tools import make_mapc2p
 
 
 try:
@@ -309,7 +310,7 @@ def setplot(plotdata=None):
         plot([0,124e3], [0,124e3], 'k--', linewidth=0.7)
         xticks(rotation=20)
         axis(axis_planview.get(frameno, 'scaled'))
-        title('Eta at t = %.0f' % current_data.t, fontsize=15)
+        title('Eta at t = %.3f' % current_data.t, fontsize=15)
     plotaxes.afteraxes = fix_planview
 
     # Water
@@ -427,7 +428,7 @@ def setplot(plotdata=None):
                 ylim(-15,15)
         frameno = current_data.frameno
         axis(axis_transect.get(frameno, (0,121e3,-15,15)))
-        title('Eta on transect at t = %.0f' % current_data.t, fontsize=15)
+        title('Eta on transect at t = %.3f' % current_data.t, fontsize=15)
         grid(True)
         if frameno in axis_transect.keys():
             fname = 'radocean%s.pdf' % str(frameno).zfill(2)
