@@ -9,6 +9,7 @@ subroutine petsc_driver(soln,rhs_geo,levelBouss,numBoussCells,time,   &
 #include <petsc/finclude/petscksp.h>
 !!#include "petscmat.h"
     use petscksp
+    use bouss_tridiag_module, only: validate_line_solve
     implicit none
     
     integer, intent(in) :: levelBouss, numBoussCells
@@ -45,6 +46,15 @@ subroutine petsc_driver(soln,rhs_geo,levelBouss,numBoussCells,time,   &
 #endif
 
     minfo => matrix_info_allLevs(levelBouss)
+
+    ! item-3 validation: once per level, check the per-line tridiagonal
+    ! extraction + Thomas solve on the REAL assembled CRS matrix, via a
+    ! round trip A_block*(A_block^-1 r)==r for each field u,v.  Read-only,
+    ! runs on the main rank.  Disable with tridiag_validate=.false.
+    if (crs) then
+       call validate_line_solve(minfo%rowPtr, minfo%cols, minfo%vals,   &
+                                minfo%numColsTot, 2*numBoussCells, levelBouss)
+    endif
 
     !================   Step 4 Solve matrix system =======================
             
