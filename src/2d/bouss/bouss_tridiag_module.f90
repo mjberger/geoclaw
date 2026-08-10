@@ -30,10 +30,25 @@ module bouss_tridiag_module
     public :: apply_line_solve
     public :: free_line_decomp
     public :: sub_matvec
+    public :: apply_block_gs
     public :: validate_line_solve
 
     ! set .false. to disable the (once-per-level) round-trip validation check
     logical, public :: tridiag_validate = .true.
+
+    ! .false. (default) = FORWARD block Gauss-Seidel (solve u, then v using A10;
+    !   ignores A01).  Matches PETSc multiplicative fieldsplit and is cheaper
+    !   (2 block solves + 1 cross matvec per apply).  .true. = SYMMETRIC sweep
+    !   (also re-solves u using A01 y_v): stronger for very strong u<->v coupling
+    !   but ~1.5x the apply cost.  Forward converges the tested cases (crater,
+    !   radial); flip to .true. only if a case stalls with forward.
+    logical, public :: bgs_symmetric = .false.
+
+    ! persistent work buffers for apply_block_gs, grown as needed and reused
+    ! across applies (avoid re-allocating every GMRES iteration).  apply_block_gs
+    ! is entered on the master thread only, so save is thread-safe.
+    real(kind=8), allocatable, save :: Ay(:), rw(:)
+    integer, save :: bgs_ntot = -1
 
     ! Decomposition of one field's diagonal block into tridiagonal lines.
     ! Storage is CSR-over-paths: path p occupies ordered slots
@@ -48,8 +63,17 @@ module bouss_tridiag_module
         real(kind=8), allocatable :: sub(:)   ! (nfield) coupling to previous dof in path
         real(kind=8), allocatable :: diag(:)  ! (nfield) diagonal
         real(kind=8), allocatable :: sup(:)   ! (nfield) coupling to next dof in path
+        integer :: maxline = 0                ! longest path (for scratch sizing)
         logical :: has_cycle = .false.        ! true if a periodic (cyclic) line was found
     end type line_decomp_t
+
+    ! persistent per-thread Thomas scratch (maxline x nthreads), grown as needed,
+    ! reused across applies.  Keeps the O(line-length) work off the WORKER-thread
+    ! stack (automatic arrays there overflow the small OMP stack on big grids;
+    ! that was a real crash).  apply_line_solve is called serially (master
+    ! thread) so growing it is race-free; the parallel loop only reads its shape
+    ! and writes disjoint columns.
+    real(kind=8), allocatable, save :: thom_cp(:,:)
 
 contains
 
@@ -71,6 +95,22 @@ contains
             endif
         end do
     end function get_entry
+
+    ! value of the same-parity edge from a dof to targetf (field-local), else 0.
+    ! edof/eval are the (<=2) off-diagonal entries captured from that dof's row.
+    pure function edge_lookup(edof, eval, ecnt, targetf) result(v)
+        integer,      intent(in) :: edof(2), ecnt, targetf
+        real(kind=8), intent(in) :: eval(2)
+        real(kind=8) :: v
+        integer :: k
+        v = 0.d0
+        do k = 1, ecnt
+            if (edof(k) == targetf) then
+                v = eval(k)
+                return
+            endif
+        end do
+    end function edge_lookup
 
     ! -----------------------------------------------------------------
     ! Build the tridiagonal-line decomposition of one field's diagonal
@@ -101,7 +141,12 @@ contains
         integer, allocatable :: nbr(:,:)     ! (2,nfield) field-local neighbours, -1 if none
         integer, allocatable :: deg(:)       ! (nfield) degree
         logical, allocatable :: visited(:)
-        integer :: np, slot, cur, prev, nxt, startf, ncount
+        integer :: np, slot, cur, prev, nxt, startf, prevf, nextf
+        ! values captured during the adjacency scan (avoid a 2nd row scan):
+        real(kind=8), allocatable :: diagval(:)     ! (nfield) A(r,r)
+        integer,      allocatable :: edge_dof(:,:)  ! (2,nfield) same-parity off-diag nbrs (field-local)
+        real(kind=8), allocatable :: edge_val(:,:)  ! (2,nfield) A(r, edge_dof) from row r
+        integer,      allocatable :: edge_cnt(:)    ! (nfield) # off-diag entries in row r (0,1,2)
 
         ! ---- map field dofs <-> field-local indices ----
         nfield = 0
@@ -118,20 +163,34 @@ contains
             dof2f(r) = f
         end do
 
-        ! ---- build symmetric-closure adjacency among field dofs ----
+        ! ---- one pass per field row: build symmetric-closure adjacency AND
+        ! capture the diagonal + directional off-diagonal values, so the
+        ! coefficient-extraction pass below needs no second row scan. ----
         allocate(nbr(2,nfield)); nbr = -1
         allocate(deg(nfield));   deg = 0
+        allocate(diagval(nfield));    diagval  = 0.d0
+        allocate(edge_dof(2,nfield)); edge_dof = -1
+        allocate(edge_val(2,nfield)); edge_val = 0.d0
+        allocate(edge_cnt(nfield));   edge_cnt = 0
 
         do f = 1, nfield
             r = f2dof(f)
             do p = rowPtr(r), rowPtr(r+1)-1
                 c = cols(p)
-                if (c == r) cycle                 ! diagonal, not an edge
                 if (c < 0 .or. c > ntot-1) cycle
                 if (mod(c,2) /= parity) cycle      ! other field (cross-coupling), skip
+                if (c == r) then
+                    diagval(f) = vals(p)           ! diagonal A(r,r)
+                    cycle
+                endif
                 if (vals(p) == 0.d0) cycle         ! explicit zero, not an edge
                 cf = dof2f(c)
-                call add_nbr(nbr, deg, nfield, f, cf)  ! symmetric: adds both directions
+                call add_nbr(nbr, deg, nfield, f, cf)  ! symmetric topological edge
+                if (edge_cnt(f) < 2) then          ! directional value A(r,c)
+                    edge_cnt(f) = edge_cnt(f) + 1
+                    edge_dof(edge_cnt(f), f) = cf
+                    edge_val(edge_cnt(f), f) = vals(p)
+                endif
             end do
         end do
 
@@ -189,27 +248,32 @@ contains
         D%nfield = nfield
         D%ntot   = ntot
         D%parity = parity
+        D%maxline = 0
+        do np = 1, D%npaths
+            D%maxline = max(D%maxline, D%pathStart(np+1) - D%pathStart(np))
+        end do
 
         ! ---- extract tridiagonal coefficients along each ordered path ----
+        ! uses the values captured in the adjacency scan (no 2nd row scan)
         allocate(D%sub(nfield), D%diag(nfield), D%sup(nfield))
         D%sub = 0.d0; D%diag = 0.d0; D%sup = 0.d0
         do np = 1, D%npaths
-            ncount = D%pathStart(np+1) - D%pathStart(np)
             do slot = D%pathStart(np), D%pathStart(np+1)-1
-                r = D%dof(slot)
-                D%diag(slot) = get_entry(rowPtr, cols, vals, nnz, ntot, r, r)
+                f = dof2f(D%dof(slot))
+                D%diag(slot) = diagval(f)
                 if (slot > D%pathStart(np)) then
-                    prev = D%dof(slot-1)
-                    D%sub(slot) = get_entry(rowPtr, cols, vals, nnz, ntot, r, prev)
+                    prevf = dof2f(D%dof(slot-1))
+                    D%sub(slot) = edge_lookup(edge_dof(:,f), edge_val(:,f), edge_cnt(f), prevf)
                 endif
                 if (slot < D%pathStart(np+1)-1) then
-                    nxt = D%dof(slot+1)
-                    D%sup(slot) = get_entry(rowPtr, cols, vals, nnz, ntot, r, nxt)
+                    nextf = dof2f(D%dof(slot+1))
+                    D%sup(slot) = edge_lookup(edge_dof(:,f), edge_val(:,f), edge_cnt(f), nextf)
                 endif
             end do
         end do
 
         deallocate(dof2f, f2dof, nbr, deg, visited)
+        deallocate(diagval, edge_dof, edge_val, edge_cnt)
     end subroutine build_line_decomp
 
     ! insert field-local neighbour j into node i's list (and i into j's),
@@ -255,67 +319,70 @@ contains
     ! independent line, threaded over lines.  rhs and x are full-length
     ! (0:ntot-1); only the field's dofs of x are written.
     ! -----------------------------------------------------------------
+    ! x is intent(inout): only this field's dofs are written, so entries
+    ! belonging to the other field are left untouched (relied on by
+    ! apply_block_gs, which solves u then v into the same vector).
     subroutine apply_line_solve(D, rhs, x)
-        type(line_decomp_t), intent(in)  :: D
-        real(kind=8),        intent(in)  :: rhs(0:D%ntot-1)
-        real(kind=8),        intent(out) :: x(0:D%ntot-1)
-        integer :: p
+        type(line_decomp_t), intent(in)    :: D
+        real(kind=8),        intent(in)    :: rhs(0:D%ntot-1)
+        real(kind=8),        intent(inout) :: x(0:D%ntot-1)
+        integer :: p, tid, nth
+        integer :: omp_get_max_threads, omp_get_thread_num   ! external (only
+        !          called on !$ lines; harmless declaration without OpenMP)
 
-        !$omp parallel do schedule(dynamic,16) default(shared) private(p)
+        ! grow the persistent per-thread scratch if needed (serial context here).
+        ! Without OpenMP nth defaults to 1 (single column of scratch).
+        nth = 1
+        !$ nth = omp_get_max_threads()
+        if (.not. allocated(thom_cp)) then
+            allocate(thom_cp(max(D%maxline,1), nth))
+        else if (size(thom_cp,1) < D%maxline .or. size(thom_cp,2) < nth) then
+            deallocate(thom_cp)
+            allocate(thom_cp(max(D%maxline,1), nth))
+        endif
+
+        !$omp parallel do schedule(dynamic,16) default(shared) private(p,tid)
         do p = 1, D%npaths
-            call solve_one_path(D, p, rhs, x)
+            tid = 1
+            !$ tid = omp_get_thread_num() + 1
+            call solve_one_path(D, p, rhs, x, thom_cp(:,tid))
         end do
         !$omp end parallel do
     end subroutine apply_line_solve
 
-    subroutine solve_one_path(D, p, rhs, x)
-        type(line_decomp_t), intent(in)  :: D
-        integer,             intent(in)  :: p
-        real(kind=8),        intent(in)  :: rhs(0:D%ntot-1)
-        real(kind=8),        intent(out) :: x(0:D%ntot-1)
+    ! Thomas solve of one tridiagonal line, reading coefficients directly from
+    ! D and rhs (no per-call copies) and writing into x at the line's dofs.
+    ! cp is thread-private scratch (length >= line length); the forward pass
+    ! stores dp in x, the back pass overwrites it in place.  No large automatic
+    ! (stack) arrays -> safe on small OpenMP worker stacks.
+    subroutine solve_one_path(D, p, rhs, x, cp)
+        type(line_decomp_t), intent(in)    :: D
+        integer,             intent(in)    :: p
+        real(kind=8),        intent(in)    :: rhs(0:D%ntot-1)
+        real(kind=8),        intent(inout) :: x(0:D%ntot-1)
+        real(kind=8),        intent(inout) :: cp(:)
         integer :: off, n, m
-        real(kind=8) :: a(D%pathStart(p+1)-D%pathStart(p))
-        real(kind=8) :: b(D%pathStart(p+1)-D%pathStart(p))
-        real(kind=8) :: c(D%pathStart(p+1)-D%pathStart(p))
-        real(kind=8) :: r(D%pathStart(p+1)-D%pathStart(p))
-        real(kind=8) :: sol(D%pathStart(p+1)-D%pathStart(p))
+        real(kind=8) :: denom, ai, bi
 
         off = D%pathStart(p) - 1
         n   = D%pathStart(p+1) - D%pathStart(p)
-        do m = 1, n
-            a(m) = D%sub(off+m)
-            b(m) = D%diag(off+m)
-            c(m) = D%sup(off+m)
-            r(m) = rhs(D%dof(off+m))
+
+        ! forward elimination (store dp in x at the line's dof positions)
+        bi = D%diag(off+1)
+        cp(1) = D%sup(off+1) / bi
+        x(D%dof(off+1)) = rhs(D%dof(off+1)) / bi
+        do m = 2, n
+            ai    = D%sub(off+m)
+            denom = D%diag(off+m) - ai*cp(m-1)
+            cp(m) = D%sup(off+m) / denom
+            x(D%dof(off+m)) = (rhs(D%dof(off+m)) - ai*x(D%dof(off+m-1))) / denom
         end do
-        call thomas(n, a, b, c, r, sol)
-        do m = 1, n
-            x(D%dof(off+m)) = sol(m)
+
+        ! back substitution (in place, same thread, disjoint from other paths)
+        do m = n-1, 1, -1
+            x(D%dof(off+m)) = x(D%dof(off+m)) - cp(m)*x(D%dof(off+m+1))
         end do
     end subroutine solve_one_path
-
-    ! Standard Thomas algorithm for a tridiagonal system.
-    !   a = subdiagonal (a(1) unused), b = diagonal,
-    !   c = superdiagonal (c(n) unused), d = rhs, x = solution.
-    subroutine thomas(n, a, b, c, d, x)
-        integer,      intent(in)  :: n
-        real(kind=8), intent(in)  :: a(n), b(n), c(n), d(n)
-        real(kind=8), intent(out) :: x(n)
-        real(kind=8) :: cp(n), dp(n), denom
-        integer :: i
-
-        cp(1) = c(1) / b(1)
-        dp(1) = d(1) / b(1)
-        do i = 2, n
-            denom = b(i) - a(i)*cp(i-1)
-            cp(i) = c(i) / denom
-            dp(i) = (d(i) - a(i)*dp(i-1)) / denom
-        end do
-        x(n) = dp(n)
-        do i = n-1, 1, -1
-            x(i) = dp(i) - cp(i)*x(i+1)
-        end do
-    end subroutine thomas
 
     subroutine free_line_decomp(D)
         type(line_decomp_t), intent(inout) :: D
@@ -353,6 +420,52 @@ contains
         end do
         !$omp end parallel do
     end subroutine sub_matvec
+
+    ! -----------------------------------------------------------------
+    ! SYMMETRIC block Gauss-Seidel preconditioner apply (matrix-free):
+    !     y_u = A00^{-1} r_u                     (forward: u)
+    !     y_v = A11^{-1} ( r_v - A10 y_u )       (forward: v, uses A10)
+    !     y_u = A00^{-1} ( r_u - A01 y_v )       (backward: re-solve u, uses A01)
+    ! Unlike a forward-only sweep (which ignores A01), this uses BOTH cross
+    ! blocks, so it stays effective when the u<->v coupling is strong (real
+    ! bathymetry: the topographic -D12/-D21 terms).  When A01 ~ 0 it reduces
+    ! to the forward sweep, so weak-coupling cases are unchanged.
+    ! D0/D1 are the u/v line decompositions of the SAME matrix (rowPtr,cols,
+    ! vals); block solves are the OpenMP Thomas line solves.
+    ! -----------------------------------------------------------------
+    subroutine apply_block_gs(D0, D1, rowPtr, cols, vals, nnz, ntot, r, y)
+        type(line_decomp_t), intent(in)  :: D0, D1
+        integer,      intent(in)  :: nnz, ntot
+        integer,      intent(in)  :: rowPtr(0:ntot), cols(0:nnz-1)
+        real(kind=8), intent(in)  :: vals(0:nnz-1)
+        real(kind=8), intent(in)  :: r(0:ntot-1)
+        real(kind=8), intent(out) :: y(0:ntot-1)
+        integer :: d
+
+        if (ntot > bgs_ntot) then          ! grow persistent buffers if needed
+            if (allocated(Ay)) deallocate(Ay, rw)
+            allocate(Ay(0:ntot-1), rw(0:ntot-1))
+            bgs_ntot = ntot
+        endif
+        y = 0.d0
+        ! forward sweep: u then v
+        call apply_line_solve(D0, r, y)                              ! y_u = A00^-1 r_u
+        call sub_matvec(rowPtr, cols, vals, nnz, ntot, 1, 0, y, Ay)  ! Ay_v = A10 y_u
+        rw = r
+        do d = 1, ntot-1, 2                                          ! v-dofs (odd)
+            rw(d) = r(d) - Ay(d)
+        end do
+        call apply_line_solve(D1, rw, y)                            ! y_v = A11^-1(r_v - A10 y_u)
+        if (bgs_symmetric) then
+            ! backward sweep: re-solve u accounting for A01 y_v (stronger PC)
+            call sub_matvec(rowPtr, cols, vals, nnz, ntot, 0, 1, y, Ay)  ! Ay_u = A01 y_v
+            rw = r
+            do d = 0, ntot-1, 2                                      ! u-dofs (even)
+                rw(d) = r(d) - Ay(d)
+            end do
+            call apply_line_solve(D0, rw, y)                        ! y_u = A00^-1(r_u - A01 y_v)
+        endif
+    end subroutine apply_block_gs
 
     ! -----------------------------------------------------------------
     ! Once per level, verify the line extraction + Thomas solve on the

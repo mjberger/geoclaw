@@ -27,6 +27,8 @@ COMMON_MODULES += \
  $(GEOLIB)/fgout_module.f90 \
  $(BOUSSLIB)/bouss_module.f90  \
  $(BOUSSLIB)/bouss_tridiag_module.f90  \
+ $(BOUSSLIB)/bouss_gmres_module.f90  \
+ $(BOUSSLIB)/bouss_pcshell.f90  \
 
 COMMON_SOURCES += \
   $(AMRLIB)/prefilp.f90 \

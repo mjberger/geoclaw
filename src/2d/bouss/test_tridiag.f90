@@ -31,7 +31,7 @@ program test_tridiag
     real(kind=8), allocatable :: ev(:)
     integer, allocatable :: rowPtr(:), cols(:)
     real(kind=8), allocatable :: vals(:)
-    integer :: nent, nnz, k22
+    integer :: nent, nnz, k22, i
     type(line_decomp_t) :: D0, D1, DR
     real(kind=8), allocatable :: xtrue(:), b(:), x(:)
     real(kind=8) :: err
@@ -79,6 +79,25 @@ program test_tridiag
     err = fielderr(x, xtrue, ntot, 0)
     call check_err(err, tol, 'u-revert block solve exact (asymmetric)', nfail)
 
+    ! ---- apply_block_gs: exact inverse on a block-LOWER-triangular system ----
+    ! With A01=0 the matrix is [[A00,0],[A10,A11]], for which forward block
+    ! Gauss-Seidel IS the exact inverse, so block_gs(A*x_true) must recover
+    ! x_true.  Exercises the A10 cross-term matvec, sign, and u/v wiring.
+    call free_line_decomp(D0); call free_line_decomp(D1); call free_line_decomp(DR)
+    nent = 0
+    call assemble(er, ec, ev, nent, lower_tri=.true.)
+    call to_crs(er, ec, ev, nent, ntot, rowPtr, cols, vals, nnz)
+    call build_line_decomp(rowPtr, cols, vals, nnz, ntot, 0, D0)
+    call build_line_decomp(rowPtr, cols, vals, nnz, ntot, 1, D1)
+    call set_xtrue(xtrue)
+    call full_matvec(rowPtr, cols, vals, nnz, ntot, xtrue, b)
+    call apply_block_gs(D0, D1, rowPtr, cols, vals, nnz, ntot, b, x)
+    err = 0.d0
+    do i = 0, ntot-1
+        err = max(err, abs(x(i) - xtrue(i)))
+    end do
+    call check_err(err, tol, 'block-GS exact on lower-triangular system', nfail)
+
     ! smoke-test the in-run validation routine on the synthetic matrix
     write(*,*)
     write(*,'(a)') 'validate_line_solve() smoke test:'
@@ -97,26 +116,47 @@ contains
     integer function udof(kk);  integer,intent(in)::kk; udof = 2*(kk-1); end function
     integer function vdof(kk);  integer,intent(in)::kk; vdof = 2*kk-1;   end function
 
-    subroutine assemble(er, ec, ev, nent)
+    subroutine assemble(er, ec, ev, nent, lower_tri)
         integer, intent(inout) :: er(:), ec(:), nent
         real(kind=8), intent(inout) :: ev(:)
+        logical, intent(in), optional :: lower_tri
         integer :: i, j, k
+        logical :: lt
+        lt = .false.
+        if (present(lower_tri)) lt = lower_tri
         do j = 1, ny
         do i = 1, nx
             k = (j-1)*nx + i
-            ! u-row: x-tridiagonal (i-neighbours) + one cross term to v
+            ! u-row: x-tridiagonal (i-neighbours) + one cross term to v (A01)
             call addent(er,ec,ev,nent, udof(k), udof(k),   4.d0 + 0.1d0*i + 0.01d0*j)
             if (i > 1)  call addent(er,ec,ev,nent, udof(k), udof(k-1), -1.0d0 - 0.01d0*j)
             if (i < nx) call addent(er,ec,ev,nent, udof(k), udof(k+1), -1.1d0 - 0.01d0*j)
-            call addent(er,ec,ev,nent, udof(k), vdof(k), 0.3d0)          ! cross u<-v
-            ! v-row: y-tridiagonal (j-neighbours) + one cross term to u
+            if (.not. lt) call addent(er,ec,ev,nent, udof(k), vdof(k), 0.3d0)  ! A01 (omit -> lower tri)
+            ! v-row: y-tridiagonal (j-neighbours) + one cross term to u (A10)
             call addent(er,ec,ev,nent, vdof(k), vdof(k),   5.d0 + 0.05d0*i + 0.2d0*j)
             if (j > 1)  call addent(er,ec,ev,nent, vdof(k), vdof(k-nx), -1.2d0)
             if (j < ny) call addent(er,ec,ev,nent, vdof(k), vdof(k+nx), -0.9d0)
-            call addent(er,ec,ev,nent, vdof(k), udof(k), 0.2d0)          ! cross v<-u
+            call addent(er,ec,ev,nent, vdof(k), udof(k), 0.2d0)          ! A10 (lower block)
         end do
         end do
     end subroutine assemble
+
+    ! full sparse matvec (all columns): b = A x
+    subroutine full_matvec(rowPtr, cols, vals, nnz, ntot, x, b)
+        integer, intent(in) :: nnz, ntot
+        integer, intent(in) :: rowPtr(0:ntot), cols(0:nnz-1)
+        real(kind=8), intent(in) :: vals(0:nnz-1), x(0:ntot-1)
+        real(kind=8), intent(out) :: b(0:ntot-1)
+        integer :: r, p
+        real(kind=8) :: s
+        do r = 0, ntot-1
+            s = 0.d0
+            do p = rowPtr(r), rowPtr(r+1)-1
+                s = s + vals(p)*x(cols(p))
+            end do
+            b(r) = s
+        end do
+    end subroutine full_matvec
 
     subroutine addent(er, ec, ev, nent, r, c, v)
         integer, intent(inout) :: er(:), ec(:), nent
