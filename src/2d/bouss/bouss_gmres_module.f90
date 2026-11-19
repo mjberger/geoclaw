@@ -30,6 +30,41 @@ module bouss_gmres_module
     real(kind=8), allocatable, save :: w(:), z(:), zsum(:), reshist(:)
     integer, save :: wk_ntot = -1, wk_m = -1
 
+    ! Orthogonalization of the new Krylov vector w against V(:,1:j).  Selected
+    ! at run time with the environment variable BOUSS_GMRES_ORTH (read once):
+    !   1 = modified Gram-Schmidt, each dot/axpy its own OpenMP region
+    !       (2j fork/joins per iteration; the original implementation)
+    !   2 = modified Gram-Schmidt, serial (no OpenMP in the orthogonalization)
+    !   3 = classical Gram-Schmidt in two threaded block passes (h = V^T w, then
+    !       w = w - V h), re-orthogonalized once when the update removed more
+    !       than a factor 1/sqrt(2) of ||w|| (the DGKS "twice is enough" test,
+    !       also PETSc's default).  2 to 4 regions per iteration instead of 2j.
+    integer, public, save :: gmres_orth = 3
+    integer, public, save :: gmres_nreorth = 0    ! CGS re-orthogonalizations so far
+    ! Mode 3 re-orthogonalization test: refine when ||w_after|| < tol*||w_before||.
+    ! tol = 1/sqrt(2) is the DGKS criterion (also PETSc's): it guarantees
+    ! eps-level orthogonality, but in GMRES on a well-preconditioned system the
+    ! new vector lies mostly in the old span, so it fires on nearly every
+    ! iteration and the cost doubles (CGS2).  GMRES only needs the loss of
+    ! orthogonality, about eps/tol, to stay far below rtol, so the default is
+    ! 1e-3 (margin ~1e4 at rtol 1e-9).  Environment variable BOUSS_CGS_REORTH
+    ! overrides (set 0.7071 for the DGKS behaviour).
+    real(kind=8), public, save :: cgs_reorth_tol = 1.d-3
+    ! doubleCheck (default on): a convergence claim made inside a cycle from the
+    ! Givens-rotated residual estimate is verified with the true residual
+    ! ||b - A x|| (one extra matvec per solve, ~2-4%) before gmres_solve
+    ! returns; if the true residual is still above rtol the iteration simply
+    ! continues with another restart cycle.  This makes the stopping rule
+    ! independent of how well the Krylov basis kept its orthogonality.  Set it
+    ! .false. here, or via environment variable BOUSS_GMRES_DOUBLECHECK=0, to
+    ! trust the estimate alone (the behaviour before Nov 2026).
+    logical, public, save :: doubleCheck = .true.
+    integer, public, save :: gmres_ncheckfail = 0     ! verifications that failed
+    real(kind=8), public, save :: gmres_max_est_err = 0.d0, gmres_max_true_resid = 0.d0
+    logical, save :: orth_init = .false.
+    real(kind=8), allocatable, save :: hpart(:,:) ! (m+1, nthreads) partial sums, mode 3
+    integer, save :: hp_m = -1, hp_nth = -1
+
 contains
 
     ! y = A x   (compressed CSR, 0-based), threaded over rows
@@ -122,9 +157,35 @@ contains
         integer,      intent(out) :: iters, info
         real(kind=8), intent(out) :: resid
 
-        real(kind=8) :: beta, bnorm, denom, tmp
+        real(kind=8) :: beta, bnorm, denom, tmp, s
         logical, save :: hist_printed = .false.
-        integer :: i, j, k, cyc, jj
+        integer :: i, j, k, cyc, jj, r, nth, istat, ios
+        character(len=16) :: envstr
+        logical :: est_conv
+        integer :: omp_get_max_threads      ! external, called only on !$ lines
+
+        if (.not. orth_init) then           ! pick the orthogonalization once
+            call get_environment_variable('BOUSS_GMRES_ORTH', envstr, status=istat)
+            if (istat == 0 .and. len_trim(envstr) > 0) then
+                read(envstr, *, iostat=ios) gmres_orth
+                if (ios /= 0) gmres_orth = 3
+            endif
+            if (gmres_orth < 1 .or. gmres_orth > 3) gmres_orth = 3
+            call get_environment_variable('BOUSS_CGS_REORTH', envstr, status=istat)
+            if (istat == 0 .and. len_trim(envstr) > 0) then
+                read(envstr, *, iostat=ios) cgs_reorth_tol
+                if (ios /= 0) cgs_reorth_tol = 1.d-3
+            endif
+            call get_environment_variable('BOUSS_GMRES_DOUBLECHECK', envstr, status=istat)
+            if (istat == 0 .and. len_trim(envstr) > 0) doubleCheck = (envstr(1:1) /= '0')
+            write(*,'(a,i0,a)') ' GMRES orthogonalization mode ', gmres_orth, &
+                  '  (1 = MGS threaded, 2 = MGS serial, 3 = CGS + re-orth test)'
+            if (gmres_orth == 3) write(*,'(a,es9.2)') &
+                  ' GMRES CGS re-orthogonalization threshold ', cgs_reorth_tol
+            write(*,'(a,l1)') ' GMRES doubleCheck (true residual verified at convergence): ', &
+                  doubleCheck
+            orth_init = .true.
+        endif
 
         if (ntot > wk_ntot .or. m > wk_m) then   ! grow persistent buffers
             if (allocated(V)) deallocate(V,H,cs,sn,g,yy,w,z,zsum,reshist)
@@ -133,6 +194,13 @@ contains
             allocate(w(0:ntot-1), z(0:ntot-1), zsum(0:ntot-1))
             allocate(reshist(0:m))
             wk_ntot = ntot; wk_m = m
+        endif
+        nth = 1
+        !$ nth = omp_get_max_threads()
+        if (m+1 > hp_m .or. nth > hp_nth) then  ! per-thread partials for mode 3
+            if (allocated(hpart)) deallocate(hpart)
+            allocate(hpart(m+1, nth))
+            hp_m = m+1; hp_nth = nth
         endif
         reshist = 0.d0
 
@@ -145,14 +213,26 @@ contains
             return
         endif
 
-        do cyc = 1, maxcycles
-            ! true residual r = b - A x  (x0=0 first cycle)
+        cyc = 0
+        est_conv = .false.
+        do
+            ! true residual r = b - A x  (x0=0 the first time).  With doubleCheck
+            ! the loop also comes back here after the in-cycle estimate reached
+            ! rtol, so the claim is verified before returning.
             call csr_matvec(rowPtr, cols, vals, nnz, ntot, x, w)
             call omp_axpy(ntot, -1.d0, b, w)      ! w = A x - b
             beta = sqrt(omp_dot(ntot, w, w))      ! ||A x - b|| = ||r||
+            if (est_conv) then                    ! verifying the estimate in `resid`
+                gmres_max_est_err    = max(gmres_max_est_err, abs(beta/bnorm - resid))
+                gmres_max_true_resid = max(gmres_max_true_resid, beta/bnorm)
+                if (beta > rtol*bnorm) gmres_ncheckfail = gmres_ncheckfail + 1
+                est_conv = .false.
+            endif
             resid = beta / bnorm
             reshist(0) = resid
             if (beta <= rtol*bnorm) then; info = 0; exit; endif
+            if (cyc >= maxcycles) exit            ! out of cycles; info stays 1
+            cyc = cyc + 1
             call omp_scalecopy(ntot, -1.d0/beta, w, V(:,1))   ! v1 = (b - A x)/beta
             g = 0.d0; g(1) = beta
 
@@ -162,12 +242,33 @@ contains
                 call apply_pc(precondition, D0, D1, rowPtr, cols, vals, nnz, &
                               ntot, V(:,j), z)                        ! z = M^-1 v_j
                 call csr_matvec(rowPtr, cols, vals, nnz, ntot, z, w)  ! w = A z
-                ! modified Gram-Schmidt
-                do i = 1, j
-                    H(i,j) = omp_dot(ntot, w, V(:,i))
-                    call omp_axpy(ntot, -H(i,j), V(:,i), w)
-                end do
-                H(j+1,j) = sqrt(omp_dot(ntot, w, w))
+                ! orthogonalize w against V(:,1:j); sets H(1:j,j), H(j+1,j)=||w||
+                select case (gmres_orth)
+                case (2)        ! modified Gram-Schmidt, serial
+                    do i = 1, j
+                        s = 0.d0
+                        do r = 0, ntot-1
+                            s = s + w(r)*V(r,i)
+                        end do
+                        H(i,j) = s
+                        do r = 0, ntot-1
+                            w(r) = w(r) - s*V(r,i)
+                        end do
+                    end do
+                    s = 0.d0
+                    do r = 0, ntot-1
+                        s = s + w(r)*w(r)
+                    end do
+                    H(j+1,j) = sqrt(s)
+                case (3)        ! classical Gram-Schmidt, block passes + re-orth test
+                    call cgs_orth(ntot, j)
+                case default    ! modified Gram-Schmidt, one OpenMP region per dot/axpy
+                    do i = 1, j
+                        H(i,j) = omp_dot(ntot, w, V(:,i))
+                        call omp_axpy(ntot, -H(i,j), V(:,i), w)
+                    end do
+                    H(j+1,j) = sqrt(omp_dot(ntot, w, w))
+                end select
                 if (H(j+1,j) > 0.d0) then
                     call omp_scalecopy(ntot, 1.d0/H(j+1,j), w, V(:,j+1))
                 else
@@ -210,8 +311,11 @@ contains
             call apply_pc(precondition, D0, D1, rowPtr, cols, vals, nnz, ntot, zsum, z)
             call omp_axpy(ntot, 1.d0, z, x)
 
-            if (resid <= rtol) then
-                info = 0; exit
+            if (resid <= rtol) then               ! Givens estimate says converged
+                if (.not. doubleCheck) then
+                    info = 0; exit
+                endif
+                est_conv = .true.                 ! go verify with the true residual
             else
                 ! only prints when a full cycle finished without converging
                 write(*,'(a,i3,a,i5,a,es11.3)') " GMRES restart cycle ",cyc,   &
@@ -229,5 +333,111 @@ contains
             endif
         end do
     end subroutine gmres_solve
+
+    ! -----------------------------------------------------------------
+    ! [mode 3] Classical Gram-Schmidt of the module vector w against
+    ! V(:,1:j) in two block passes: all j dot products in one threaded sweep,
+    ! then all j updates in one threaded sweep (each thread keeps its chunk of
+    ! w in cache and streams each column of V once).  DGKS test: if the update
+    ! removed more than a factor 1/sqrt(2) of ||w||, the coefficients may have
+    ! lost accuracy to cancellation, so do it a second time ("twice is
+    ! enough").  On exit H(1:j,j) holds the coefficients and H(j+1,j) = ||w||.
+    ! -----------------------------------------------------------------
+    subroutine cgs_orth(ntot, j)
+        integer, intent(in) :: ntot, j
+        real(kind=8) :: hloc(j), wn0, wn1
+
+        call block_dots(ntot, j, hloc, wn0)       ! hloc = V^T w,  wn0 = ||w||^2 before
+        call block_update(ntot, j, hloc, wn1)     ! w = w - V hloc, wn1 = ||w||^2 after
+        H(1:j,j) = hloc
+        if (wn1 < cgs_reorth_tol**2 * wn0) then
+            gmres_nreorth = gmres_nreorth + 1
+            call block_dots(ntot, j, hloc, wn0)
+            call block_update(ntot, j, hloc, wn1)
+            H(1:j,j) = H(1:j,j) + hloc
+        endif
+        H(j+1,j) = sqrt(wn1)
+    end subroutine cgs_orth
+
+    ! rows 0:ntot-1 split into nth contiguous chunks; chunk tid is r0:r1
+    pure subroutine chunk_bounds(ntot, nth, tid, r0, r1)
+        integer, intent(in)  :: ntot, nth, tid
+        integer, intent(out) :: r0, r1
+        r0 = int((int(ntot,8)*tid)/nth)
+        r1 = int((int(ntot,8)*(tid+1))/nth) - 1
+    end subroutine chunk_bounds
+
+    ! h(i) = V(:,i).w for i = 1..j and wn = w.w, in ONE threaded sweep.
+    ! Per-thread partial sums go to hpart(:,tid+1) and are combined in thread
+    ! order afterwards, so the result is reproducible for a fixed thread count.
+    subroutine block_dots(ntot, j, h, wn)
+        integer,      intent(in)  :: ntot, j
+        real(kind=8), intent(out) :: h(j), wn
+        integer :: i, r, r0, r1, nth, tid, t, nteam
+        real(kind=8) :: s
+        integer :: omp_get_num_threads, omp_get_thread_num   ! external, !$ lines only
+
+        nteam = 1
+        !$omp parallel default(shared) private(i,r,r0,r1,nth,tid,s)
+        nth = 1; tid = 0
+        !$ nth = omp_get_num_threads()
+        !$ tid = omp_get_thread_num()
+        if (tid == 0) nteam = nth
+        call chunk_bounds(ntot, nth, tid, r0, r1)
+        do i = 1, j
+            s = 0.d0
+            do r = r0, r1
+                s = s + V(r,i)*w(r)
+            end do
+            hpart(i, tid+1) = s
+        end do
+        s = 0.d0
+        do r = r0, r1
+            s = s + w(r)*w(r)
+        end do
+        hpart(j+1, tid+1) = s
+        !$omp end parallel
+
+        h = 0.d0; wn = 0.d0
+        do t = 1, nteam
+            h(1:j) = h(1:j) + hpart(1:j, t)
+            wn = wn + hpart(j+1, t)
+        end do
+    end subroutine block_dots
+
+    ! w = w - sum_i h(i) V(:,i)  and  wn = ||w||^2 afterwards, ONE threaded sweep
+    subroutine block_update(ntot, j, h, wn)
+        integer,      intent(in)  :: ntot, j
+        real(kind=8), intent(in)  :: h(j)
+        real(kind=8), intent(out) :: wn
+        integer :: i, r, r0, r1, nth, tid, t, nteam
+        real(kind=8) :: s, hi
+        integer :: omp_get_num_threads, omp_get_thread_num   ! external, !$ lines only
+
+        nteam = 1
+        !$omp parallel default(shared) private(i,r,r0,r1,nth,tid,s,hi)
+        nth = 1; tid = 0
+        !$ nth = omp_get_num_threads()
+        !$ tid = omp_get_thread_num()
+        if (tid == 0) nteam = nth
+        call chunk_bounds(ntot, nth, tid, r0, r1)
+        do i = 1, j
+            hi = h(i)
+            do r = r0, r1
+                w(r) = w(r) - hi*V(r,i)
+            end do
+        end do
+        s = 0.d0
+        do r = r0, r1
+            s = s + w(r)*w(r)
+        end do
+        hpart(j+1, tid+1) = s
+        !$omp end parallel
+
+        wn = 0.d0
+        do t = 1, nteam
+            wn = wn + hpart(j+1, t)
+        end do
+    end subroutine block_update
 
 end module bouss_gmres_module

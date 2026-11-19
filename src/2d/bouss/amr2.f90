@@ -89,6 +89,9 @@ program amr2
     use amr_module, only: timelinedecomp
     use amr_module, only: timeCompress
     use amr_module, only: maxLineLen, maxLineLevel
+    use bouss_gmres_module, only: gmres_orth, gmres_nreorth, cgs_reorth_tol,   &
+                                  doubleCheck, gmres_ncheckfail,               &
+                                  gmres_max_est_err, gmres_max_true_resid
     use amr_module, only: kcheck, iorder, lendim, lenmax, memsize
 
     use amr_module, only: dprint, eprint, edebug, gprint, nprint, pprint
@@ -833,6 +836,18 @@ program amr2
        write(*,991) maxLineLen, maxLineLevel
        write(timing_unit,991) maxLineLen, maxLineLevel
  991   format(' Longest tridiagonal line over run: ',i10,' cells (level ',i3,')')
+       write(*,992) gmres_orth, gmres_nreorth, cgs_reorth_tol
+       write(timing_unit,992) gmres_orth, gmres_nreorth, cgs_reorth_tol
+ 992   format(' GMRES orthogonalization mode ',i1,                        &
+              ' (1 MGS omp, 2 MGS serial, 3 CGS); re-orthogonalizations: ',i8, &
+              '  (CGS threshold ',es8.1,')')
+       if (doubleCheck) then
+          write(*,993) gmres_ncheckfail, gmres_max_est_err, gmres_max_true_resid
+          write(timing_unit,993) gmres_ncheckfail, gmres_max_est_err, gmres_max_true_resid
+ 993      format(' GMRES doubleCheck: failed verifications ',i6,          &
+                 '  max |est - true| rel resid ',es9.2,                    &
+                 '  max true rel resid ',es9.2)
+       endif
     endif
 
 

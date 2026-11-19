@@ -39,7 +39,11 @@ A = [ I - D11    -D12   ]
    dof lands in **exactly one line** (a true partition), which is what makes the
    threaded line solve race-free.
 3. `gmres_solve` runs **right-preconditioned restarted GMRES(50)**, `rtol 1e-9`,
-   up to 4 cycles.
+   up to 4 cycles. The new Krylov vector is orthogonalized by **classical
+   Gram-Schmidt in two threaded block passes** (`cgs_orth`: all j dot products in
+   one sweep, all j updates in one sweep, re-orthogonalized only when the update
+   removed more than a factor `cgs_reorth_tol = 1e-3` of the norm). Modified
+   Gram-Schmidt is kept for comparison; see "Orthogonalization modes" below.
 4. Preconditioner = **directional block Gauss–Seidel**: solve the u-block
    (tridiagonal lines in x, *exact* Thomas), update, solve the v-block. Forward
    sweep by default; symmetric (both cross blocks) available via
@@ -79,7 +83,51 @@ Modified: `implicit_update_bouss_2Calls.f90`, `prepBuildSparseMatrixSGNcrs.f90`,
 - Diagnostics printed at end of run (`bouss_solver=1`): `line-decomp` and
   `compressOut` timers, and the longest tridiagonal line seen (`maxLineLen`).
 
+## Orthogonalization modes (Nov 2026)
+
+Selected at run time by environment variables, read once in `gmres_solve`:
+
+- `BOUSS_GMRES_ORTH` = **3** (default) classical Gram-Schmidt, block passes;
+  **1** modified Gram-Schmidt, one OpenMP region per dot/axpy (the original);
+  **2** modified Gram-Schmidt serial (no OpenMP in the orthogonalization).
+- `BOUSS_CGS_REORTH` = re-orthogonalization threshold for mode 3 (default `1e-3`;
+  `0.7071` gives the DGKS / PETSc criterion).
+- `doubleCheck` (module flag, default `.true.`; `BOUSS_GMRES_DOUBLECHECK=0` turns
+  it off): a convergence claim from the Givens residual estimate is verified
+  against the true residual ||b − A x|| before `gmres_solve` returns (one extra
+  matvec per solve); if it fails, iteration continues with another restart
+  cycle. The end-of-run summary prints the number of failed verifications and
+  the worst |estimate − true| seen, so the stopping rule no longer depends on
+  the orthogonalization keeping the basis orthogonal. Measured cost on
+  radial_flat at `-O2`: none visible (68.4 s on vs 70.0 s off, inside the
+  run-to-run noise); 0 failed verifications, max |est − true| = 1.6e-16.
+
+radial_flat (200×200, 2 levels, 8 threads, M4 Max), linear-solve wall seconds;
+iteration counts identical in every mode (11.00 / 19.07 on levels 1 / 2):
+
+| build                        | MGS threaded | MGS serial | CGS 1e-3 | CGS DGKS |
+|------------------------------|-------------:|-----------:|---------:|---------:|
+| `-O -fbounds-check` (Makefile) | 111.7      | 235.5      | **91.6** | 119.1    |
+| `-O2`, no bounds check        | 95.6        | 164.2      | **68.4** | 88.3     |
+
+Run-to-run noise between sessions is ~7% (the same MGS build measured 103.9 s in
+October). A verification run (true residual recomputed after every solve) with
+CGS 1e-3 gave max |est − true| = 3e-16 and max true relative residual 9.99e-10
+over 2177 solves, so no re-orthogonalization was ever needed. The `-O2` build is what `xgeoclaw` in radial_flat currently is; a plain
+`make new` there goes back to the Makefile's `-O -fbounds-check`.
+
 ## Hard-won lessons / gotchas (read before editing)
+
+0. **DGKS fires on every GMRES iteration.** The textbook "re-orthogonalize if
+   ||w|| dropped by more than 1/√2" test (PETSc's default too) assumes nothing
+   about w. In GMRES on a well-preconditioned system the new vector A·M⁻¹v lies
+   mostly in the span of the old ones, so the projection always removes most of
+   its norm and CGS silently becomes CGS2 (36008 refinements in 36012 iterations
+   here), slower than MGS. GMRES only needs orthogonality loss ≈ ε/threshold to
+   stay far below `rtol`, hence the 1e-3 default. **Serial MGS is 2× slower**
+   than threaded MGS: the dot/axpy regions are bandwidth-bound, not sync-bound,
+   so "fewer forks" is not where the time goes; the CGS gain is cache reuse of
+   the thread's chunk of w across all j columns plus 2 regions instead of 2j.
 
 1. **OpenMP without a hard dependency.** Do **not** `use omp_lib`. Declare
    `omp_get_max_threads`/`omp_get_thread_num` as `integer` externals and call them
