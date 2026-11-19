@@ -55,7 +55,6 @@ A = [ I - D11    -D12   ]
 |------|------|
 | `bouss_tridiag_module.f90` | line decomposition (`build_line_decomp`), threaded Thomas line solve (`apply_line_solve`/`solve_one_path`), block-GS preconditioner (`apply_block_gs`), CSR sub-matvec |
 | `bouss_gmres_module.f90` | OpenMP GMRES (`gmres_solve`), CSR matvec, threaded dot/axpy/scale |
-| `bouss_pcshell.f90` | optional PETSc `PCShell` wrapper for the tridiagonal PC (only compiled with `HAVE_PETSC`) |
 | `test_tridiag.f90`, `test_gmres.f90`, `test_compress.f90` | standalone unit tests |
 
 Modified: `implicit_update_bouss_2Calls.f90`, `prepBuildSparseMatrixSGNcrs.f90`,
@@ -109,6 +108,11 @@ iteration counts identical in every mode (11.00 / 19.07 on levels 1 / 2):
 |------------------------------|-------------:|-----------:|---------:|---------:|
 | `-O -fbounds-check` (Makefile) | 111.7      | 235.5      | **91.6** | 119.1    |
 | `-O2`, no bounds check        | 95.6        | 164.2      | **68.4** | 88.3     |
+
+crater_westport (real bathymetry, 7 levels, 8 threads, `-O2`, `bouss_solver=1`):
+MGS 427.1 s → CGS 368.4 s linear solve (−14%), total run 628.8 → 568.1 s (−10%);
+iteration counts identical on all 7 levels (3.0 / 5.0 / 7.5 / 10.4 / 12.7 / 6.9 / 6.6);
+224 re-orthogonalizations in ~143k iterations (0.16%); 0 failed doubleChecks.
 
 Run-to-run noise between sessions is ~7% (the same MGS build measured 103.9 s in
 October). A verification run (true residual recomputed after every solve) with

@@ -1,8 +1,9 @@
 ! =====================================================================
 ! bouss_tridiag_module
 !
-! Item 1-2 of the parallel PCSHELL preconditioner for the SGN Boussinesq
-! linear system.  The 2x2-block matrix (interleaved u0,v0,u1,v1,...) has
+! Tridiagonal line preconditioner for the SGN Boussinesq linear system,
+! used by the OpenMP GMRES in bouss_gmres_module (bouss_solver = 1).
+! The 2x2-block matrix (interleaved u0,v0,u1,v1,...) has
 ! diagonal blocks that are each a direct sum of INDEPENDENT 1D tridiagonal
 ! systems:
 !    field 0 (u, even 0-based rows): I-D11 couples only U(i,j)<->U(i+-1,j)
