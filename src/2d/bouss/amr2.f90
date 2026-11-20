@@ -92,6 +92,7 @@ program amr2
     use bouss_gmres_module, only: gmres_orth, gmres_nreorth, cgs_reorth_tol,   &
                                   doubleCheck, gmres_ncheckfail,               &
                                   gmres_max_est_err, gmres_max_true_resid
+    use bouss_tridiag_module, only: linecache_nreuse, linecache_nrebuild
     use amr_module, only: kcheck, iorder, lendim, lenmax, memsize
 
     use amr_module, only: dprint, eprint, edebug, gprint, nprint, pprint
@@ -836,6 +837,9 @@ program amr2
        write(*,991) maxLineLen, maxLineLevel
        write(timing_unit,991) maxLineLen, maxLineLevel
  991   format(' Longest tridiagonal line over run: ',i10,' cells (level ',i3,')')
+       write(*,994) linecache_nrebuild, linecache_nreuse
+       write(timing_unit,994) linecache_nrebuild, linecache_nreuse
+ 994   format(' Line decompositions: rebuilt ',i8,'  reused (values refreshed) ',i8)
        write(*,992) gmres_orth, gmres_nreorth, cgs_reorth_tol
        write(timing_unit,992) gmres_orth, gmres_nreorth, cgs_reorth_tol
  992   format(' GMRES orthogonalization mode ',i1,                        &

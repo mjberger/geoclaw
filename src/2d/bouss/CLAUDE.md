@@ -37,7 +37,14 @@ A = [ I - D11    -D12   ]
 2. `build_line_decomp` (called twice — u-lines parity 0, v-lines parity 1) walks
    the matrix graph and extracts the maximal tridiagonal **lines**. Each field
    dof lands in **exactly one line** (a true partition), which is what makes the
-   threaded line solve race-free.
+   threaded line solve race-free. The two decompositions of a level are
+   **cached** in `line_cache(level)` together with the structure they were built
+   from (rowPtr, cols, and which same-field off-diagonal entries were exactly
+   zero, since those are not edges). `update_line_decomp` compares the current
+   matrix with that structure in one threaded pass before every solve; if it is
+   identical, only `diag/sub/sup` are refreshed through CSR positions saved at
+   build time (`pdiag/psub/psup`), which is exactly what a rebuild would give.
+   Any difference rebuilds both decompositions. The walk itself is still serial.
 3. `gmres_solve` runs **right-preconditioned restarted GMRES(50)**, `rtol 1e-9`,
    up to 4 cycles. The new Krylov vector is orthogonalized by **classical
    Gram-Schmidt in two threaded block passes** (`cgs_orth`: all j dot products in
@@ -66,6 +73,12 @@ Modified: `implicit_update_bouss_2Calls.f90`, `prepBuildSparseMatrixSGNcrs.f90`,
 - Builds **with or without `-fopenmp`** (serial fallback runs one thread).
 - Builds **with or without `HAVE_PETSC`** — `bouss_solver = 1` needs neither PETSc
   nor MPI. Run single-process with `OMP_NUM_THREADS` set.
+- PETSc-free `-O2` builds: `Makefile.nopetsc` in `examples/bouss/radial_flat`,
+  `crater_westport` and `tohoku_sgn_hawaii` (only `CLAW` and `OMP_NUM_THREADS`
+  needed): `make -f Makefile.nopetsc new; rm -f .data; make -f Makefile.nopetsc .data;
+  make -f Makefile.nopetsc output OUTDIR=_output_xxx`. crater's `setrun.py` selects
+  `bouss_solver = 3`; edit `bouss.data` to 1 after `make .data` (and `rm -f .data`
+  first, or `make .data` is a no-op).
 - Unit tests (not in the Makefile — compile by hand):
   ```
   gfortran -O2 -fopenmp bouss_tridiag_module.f90 bouss_gmres_module.f90 test_gmres.f90 -o t && ./t
@@ -80,7 +93,9 @@ Modified: `implicit_update_bouss_2Calls.f90`, `prepBuildSparseMatrixSGNcrs.f90`,
   (grid-threaded) matrix build. `compressOut` and `line-decomp` are per-level and
   grid-count independent.
 - Diagnostics printed at end of run (`bouss_solver=1`): `line-decomp` and
-  `compressOut` timers, and the longest tridiagonal line seen (`maxLineLen`).
+  `compressOut` timers, the longest tridiagonal line seen (`maxLineLen`), how
+  many line decompositions were rebuilt vs reused, the orthogonalization mode
+  and re-orthogonalization count, and the doubleCheck statistics.
 
 ## Orthogonalization modes (Nov 2026)
 
@@ -114,11 +129,45 @@ MGS 427.1 s → CGS 368.4 s linear solve (−14%), total run 628.8 → 568.1 s (
 iteration counts identical on all 7 levels (3.0 / 5.0 / 7.5 / 10.4 / 12.7 / 6.9 / 6.6);
 224 re-orthogonalizations in ~143k iterations (0.16%); 0 failed doubleChecks.
 
+tohoku_sgn_hawaii (real bathymetry, 6 levels, 8 threads, `-O2`, PETSc-free):
+MGS 2743 s → CGS 2519 s linear solve (−8%; −10% excluding the line decompositions,
+which were unchanged at ~700 s), total run 4144 → 3873 s (−7%); iteration counts
+identical (2.0 / 3.0 / 4.7 / 9.0 / 4.2 / 8.9). The gain is smaller than on crater
+because solves average only 2–9 iterations, so orthogonalization is a small share
+of the solve. 15288 re-orthogonalizations in ~680k iterations (2.2%): they fire on
+the *last* iteration of a solve, when the new vector is almost inside the Krylov
+space (the same event as convergence), so the count scales with the number of
+solves, not with any orthogonality problem; 0 failed doubleChecks, max
+|est − true| = 1e-16.
+
 Run-to-run noise between sessions is ~7% (the same MGS build measured 103.9 s in
 October). A verification run (true residual recomputed after every solve) with
 CGS 1e-3 gave max |est − true| = 3e-16 and max true relative residual 9.99e-10
 over 2177 solves, so no re-orthogonalization was ever needed. The `-O2` build is what `xgeoclaw` in radial_flat currently is; a plain
 `make new` there goes back to the Makefile's `-O -fbounds-check`.
+
+## Line decomposition cache (Nov 2026)
+
+`update_line_decomp` keeps both decompositions of a level in `line_cache(level)`
+and only refreshes their values when the matrix structure is exactly the one they
+were built from (see "How the solver works", item 2). Measured with CGS, 8 threads,
+`-O2`, PETSc-free; "before" is the same-day CGS run of each case:
+
+| case (levels)         | solves | rebuilt | reused | line-decomp s   | linear solve s           |
+|-----------------------|-------:|--------:|-------:|----------------:|-------------------------:|
+| radial_flat (2)       |   2179 |     172 |   2007 | 11.9 → **2.7**  | 68.4 → **57.5** (−16%)   |
+| crater_westport (7)   |  15488 |     482 |  15006 | 114.1 → **15.0**| 368.4 → **250.5** (−32%) |
+| tohoku_sgn_hawaii (6) |  88098 |     779 |  87319 | 699.0 → **91.8**| 2518.6 → **1644.1** (−35%)|
+
+Iteration counts unchanged in all three; 0 failed doubleChecks. A rebuild happens
+only after regridding touched that level (1 per 13 / 32 / 113 solves). The honest
+cache gain is the line-decomp drop, 13% / 27% / 24% of the old solve time; the rest
+of the measured change tracks the solver-independent timers (Stepgrid was 2% / 9% /
+20% faster in the "after" runs, i.e. the earlier crater and tohoku runs were made
+while the laptop was also in use). **Always compare a solver-independent timer
+before attributing a gain.** What remains of `line-decomp` is the threaded
+structure comparison + value refresh (~1 ms per solve on tohoku) plus the rebuilds,
+whose walk is still serial. Outputs: `_output_O2_cache` in each example directory.
 
 ## Hard-won lessons / gotchas (read before editing)
 

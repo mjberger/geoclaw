@@ -12,7 +12,7 @@ subroutine implicit_update(nvar,naux,levelBouss,numBoussCells,doUpdate,time)
     use amr_module
     use topo_module, only: aux_finalized
     use bouss_module
-    use bouss_tridiag_module, only: line_decomp_t, build_line_decomp, free_line_decomp
+    use bouss_tridiag_module, only: update_line_decomp, line_cache
     use bouss_gmres_module,   only: gmres_solve
 
     implicit none
@@ -38,13 +38,13 @@ subroutine implicit_update(nvar,naux,levelBouss,numBoussCells,doUpdate,time)
     real(kind=8) cpu_startBound,cpu_finishBound, time 
     real(kind=8) cpu_startLinSolve,cpu_finishLinSolve
     logical :: debug
-    ! OpenMP GMRES (isolver=1) locals.  Rebuild the u,v line decompositions
-    ! every solve: the matrix sparsity (bouss/revert cell pattern, and even
-    ! numBoussCells) changes as the flow evolves, so caching them across steps
-    ! applies a stale, wrong-structured preconditioner (seen as a stall on
-    ! crater_westport).  Cheap structure caching can be added later only with a
-    ! correct structure-change test.
-    type(line_decomp_t) :: gmD0, gmD1
+    ! OpenMP GMRES (isolver=1) locals.  The u,v line decompositions live in
+    ! line_cache(level) (bouss_tridiag_module); update_line_decomp reuses them
+    ! when the matrix structure (rowPtr, cols, same-field zero pattern) is
+    ! unchanged since the previous solve on this level and rebuilds them
+    ! otherwise.  A stale decomposition applied to a changed structure stalled
+    ! crater_westport once, so the test is an exact comparison, not a regrid flag.
+    logical :: lc_rebuilt
     integer :: gm_iters, gm_info
     real(kind=8) :: gm_resid
 
@@ -132,29 +132,33 @@ subroutine implicit_update(nvar,naux,levelBouss,numBoussCells,doUpdate,time)
        if (minfo%numColsTot .gt. 0) then
           call system_clock(clock_startLinSolve,clock_rate)
           call cpu_time(cpu_startLinSolve)
-          ! rebuild the u,v line decompositions from the CURRENT matrix
-          ! (timed separately to see the serial rebuild's share of the solve)
+          ! bring the u,v line decompositions up to date with the CURRENT
+          ! matrix: refresh values if the structure is unchanged, else rebuild
+          ! (timed separately to see its share of the solve)
           call system_clock(clock_b0,clock_rate)
-          call build_line_decomp(minfo%rowPtr,minfo%cols,minfo%vals,       &
-                                 minfo%numColsTot,2*numBoussCells,0,gmD0)
-          call build_line_decomp(minfo%rowPtr,minfo%cols,minfo%vals,       &
-                                 minfo%numColsTot,2*numBoussCells,1,gmD1)
+          call update_line_decomp(levelBouss,minfo%rowPtr,minfo%cols,      &
+                                  minfo%vals,minfo%numColsTot,             &
+                                  2*numBoussCells,lc_rebuilt)
           call system_clock(clock_b1,clock_rate)
           timeLineDecomp = timeLineDecomp + (clock_b1 - clock_b0)
           ! track the longest tridiagonal line seen over the run
-          if (gmD0%maxline > maxLineLen) then
-             maxLineLen = gmD0%maxline;  maxLineLevel = levelBouss
-          endif
-          if (gmD1%maxline > maxLineLen) then
-             maxLineLen = gmD1%maxline;  maxLineLevel = levelBouss
+          if (lc_rebuilt) then
+             if (line_cache(levelBouss)%D0%maxline > maxLineLen) then
+                maxLineLen = line_cache(levelBouss)%D0%maxline
+                maxLineLevel = levelBouss
+             endif
+             if (line_cache(levelBouss)%D1%maxline > maxLineLen) then
+                maxLineLen = line_cache(levelBouss)%D1%maxline
+                maxLineLevel = levelBouss
+             endif
           endif
           ! right-preconditioned GMRES(50), block G-S PC, rtol=1e-9, <=200 its
           call gmres_solve(minfo%rowPtr,minfo%cols,minfo%vals,             &
-                           minfo%numColsTot,2*numBoussCells,gmD0,gmD1,     &
+                           minfo%numColsTot,2*numBoussCells,               &
+                           line_cache(levelBouss)%D0,                      &
+                           line_cache(levelBouss)%D1,                      &
                            .true., rhs,soln, 1.d-9, 50, 4,                 &
                            gm_iters,gm_resid,gm_info)
-          call free_line_decomp(gmD0)
-          call free_line_decomp(gmD1)
           call system_clock(clock_finishLinSolve,clock_rate)
           call cpu_time(cpu_finishLinSolve)
           timeLinSolve    = timeLinSolve    + clock_finishLinSolve - clock_startLinSolve

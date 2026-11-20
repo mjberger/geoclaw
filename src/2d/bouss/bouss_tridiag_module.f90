@@ -33,6 +33,8 @@ module bouss_tridiag_module
     public :: sub_matvec
     public :: apply_block_gs
     public :: validate_line_solve
+    public :: line_cache_t, line_cache, update_line_decomp, ensure_line_cache
+    public :: refresh_line_values
 
     ! set .false. to disable the (once-per-level) round-trip validation check
     logical, public :: tridiag_validate = .true.
@@ -64,9 +66,26 @@ module bouss_tridiag_module
         real(kind=8), allocatable :: sub(:)   ! (nfield) coupling to previous dof in path
         real(kind=8), allocatable :: diag(:)  ! (nfield) diagonal
         real(kind=8), allocatable :: sup(:)   ! (nfield) coupling to next dof in path
+        ! CSR positions the three coefficient arrays were read from (-1 = not
+        ! stored, value 0), so they can be refreshed without rebuilding paths
+        integer, allocatable :: pdiag(:), psub(:), psup(:)   ! (nfield)
         integer :: maxline = 0                ! longest path (for scratch sizing)
         logical :: has_cycle = .false.        ! true if a periodic (cyclic) line was found
     end type line_decomp_t
+
+    ! Per-level cache of the u/v decompositions together with the matrix
+    ! structure they were built from (rowPtr, cols, and which same-field
+    ! off-diagonal entries were exactly zero).  See update_line_decomp.
+    type :: line_cache_t
+        logical :: valid = .false.
+        integer :: ntot = -1, nnz = -1
+        integer, allocatable :: rowPtr(:)     ! (0:ntot)
+        integer, allocatable :: cols(:)       ! (0:nnz-1)
+        logical, allocatable :: zmask(:)      ! (0:nnz-1) structural-zero flags
+        type(line_decomp_t) :: D0, D1
+    end type line_cache_t
+    type(line_cache_t), allocatable, save :: line_cache(:)    ! indexed by level
+    integer(kind=8), public, save :: linecache_nreuse = 0, linecache_nrebuild = 0
 
     ! persistent per-thread Thomas scratch (maxline x nthreads), grown as needed,
     ! reused across applies.  Keeps the O(line-length) work off the WORKER-thread
@@ -97,21 +116,19 @@ contains
         end do
     end function get_entry
 
-    ! value of the same-parity edge from a dof to targetf (field-local), else 0.
-    ! edof/eval are the (<=2) off-diagonal entries captured from that dof's row.
-    pure function edge_lookup(edof, eval, ecnt, targetf) result(v)
-        integer,      intent(in) :: edof(2), ecnt, targetf
-        real(kind=8), intent(in) :: eval(2)
-        real(kind=8) :: v
-        integer :: k
-        v = 0.d0
-        do k = 1, ecnt
-            if (edof(k) == targetf) then
-                v = eval(k)
+    ! index (1 or 2) of the same-parity edge from a dof to targetf (field-local)
+    ! among the (<=2) off-diagonal entries captured from that dof's row, else 0.
+    pure function edge_index(edof, ecnt, targetf) result(k)
+        integer, intent(in) :: edof(2), ecnt, targetf
+        integer :: k, kk
+        k = 0
+        do kk = 1, ecnt
+            if (edof(kk) == targetf) then
+                k = kk
                 return
             endif
         end do
-    end function edge_lookup
+    end function edge_index
 
     ! -----------------------------------------------------------------
     ! Build the tridiagonal-line decomposition of one field's diagonal
@@ -142,11 +159,13 @@ contains
         integer, allocatable :: nbr(:,:)     ! (2,nfield) field-local neighbours, -1 if none
         integer, allocatable :: deg(:)       ! (nfield) degree
         logical, allocatable :: visited(:)
-        integer :: np, slot, cur, prev, nxt, startf, prevf, nextf
+        integer :: np, slot, cur, prev, nxt, startf, prevf, nextf, kk
         ! values captured during the adjacency scan (avoid a 2nd row scan):
         real(kind=8), allocatable :: diagval(:)     ! (nfield) A(r,r)
+        integer,      allocatable :: diagpos(:)     ! (nfield) CSR position of A(r,r), -1 if none
         integer,      allocatable :: edge_dof(:,:)  ! (2,nfield) same-parity off-diag nbrs (field-local)
         real(kind=8), allocatable :: edge_val(:,:)  ! (2,nfield) A(r, edge_dof) from row r
+        integer,      allocatable :: edge_pos(:,:)  ! (2,nfield) CSR position of edge_val
         integer,      allocatable :: edge_cnt(:)    ! (nfield) # off-diag entries in row r (0,1,2)
 
         ! ---- map field dofs <-> field-local indices ----
@@ -170,8 +189,10 @@ contains
         allocate(nbr(2,nfield)); nbr = -1
         allocate(deg(nfield));   deg = 0
         allocate(diagval(nfield));    diagval  = 0.d0
+        allocate(diagpos(nfield));    diagpos  = -1
         allocate(edge_dof(2,nfield)); edge_dof = -1
         allocate(edge_val(2,nfield)); edge_val = 0.d0
+        allocate(edge_pos(2,nfield)); edge_pos = -1
         allocate(edge_cnt(nfield));   edge_cnt = 0
 
         do f = 1, nfield
@@ -182,6 +203,7 @@ contains
                 if (mod(c,2) /= parity) cycle      ! other field (cross-coupling), skip
                 if (c == r) then
                     diagval(f) = vals(p)           ! diagonal A(r,r)
+                    diagpos(f) = p
                     cycle
                 endif
                 if (vals(p) == 0.d0) cycle         ! explicit zero, not an edge
@@ -191,6 +213,7 @@ contains
                     edge_cnt(f) = edge_cnt(f) + 1
                     edge_dof(edge_cnt(f), f) = cf
                     edge_val(edge_cnt(f), f) = vals(p)
+                    edge_pos(edge_cnt(f), f) = p
                 endif
             end do
         end do
@@ -257,24 +280,33 @@ contains
         ! ---- extract tridiagonal coefficients along each ordered path ----
         ! uses the values captured in the adjacency scan (no 2nd row scan)
         allocate(D%sub(nfield), D%diag(nfield), D%sup(nfield))
+        allocate(D%psub(nfield), D%pdiag(nfield), D%psup(nfield))
         D%sub = 0.d0; D%diag = 0.d0; D%sup = 0.d0
+        D%psub = -1;  D%pdiag = -1;  D%psup = -1
         do np = 1, D%npaths
             do slot = D%pathStart(np), D%pathStart(np+1)-1
                 f = dof2f(D%dof(slot))
-                D%diag(slot) = diagval(f)
+                D%diag(slot)  = diagval(f)
+                D%pdiag(slot) = diagpos(f)
                 if (slot > D%pathStart(np)) then
                     prevf = dof2f(D%dof(slot-1))
-                    D%sub(slot) = edge_lookup(edge_dof(:,f), edge_val(:,f), edge_cnt(f), prevf)
+                    kk = edge_index(edge_dof(:,f), edge_cnt(f), prevf)
+                    if (kk > 0) then
+                        D%sub(slot) = edge_val(kk,f);  D%psub(slot) = edge_pos(kk,f)
+                    endif
                 endif
                 if (slot < D%pathStart(np+1)-1) then
                     nextf = dof2f(D%dof(slot+1))
-                    D%sup(slot) = edge_lookup(edge_dof(:,f), edge_val(:,f), edge_cnt(f), nextf)
+                    kk = edge_index(edge_dof(:,f), edge_cnt(f), nextf)
+                    if (kk > 0) then
+                        D%sup(slot) = edge_val(kk,f);  D%psup(slot) = edge_pos(kk,f)
+                    endif
                 endif
             end do
         end do
 
         deallocate(dof2f, f2dof, nbr, deg, visited)
-        deallocate(diagval, edge_dof, edge_val, edge_cnt)
+        deallocate(diagval, diagpos, edge_dof, edge_val, edge_pos, edge_cnt)
     end subroutine build_line_decomp
 
     ! insert field-local neighbour j into node i's list (and i into j's),
@@ -392,9 +424,144 @@ contains
         if (allocated(D%sub))       deallocate(D%sub)
         if (allocated(D%diag))      deallocate(D%diag)
         if (allocated(D%sup))       deallocate(D%sup)
+        if (allocated(D%pdiag))     deallocate(D%pdiag)
+        if (allocated(D%psub))      deallocate(D%psub)
+        if (allocated(D%psup))      deallocate(D%psup)
         D%ntot = 0; D%parity = -1; D%nfield = 0; D%npaths = 0
         D%has_cycle = .false.
     end subroutine free_line_decomp
+
+    ! -----------------------------------------------------------------
+    ! Decomposition cache.
+    !
+    ! The u/v line decompositions of a level depend only on the matrix
+    ! STRUCTURE: rowPtr, cols, and which same-field off-diagonal entries are
+    ! exactly zero (build_line_decomp does not treat those as edges).  Between
+    ! regrids the structure of a level is unchanged for many solves while the
+    ! values change every solve.  update_line_decomp compares the current
+    ! matrix against the structure the cached decompositions were built from,
+    ! in one threaded pass over the index arrays; if identical, only the
+    ! coefficient arrays are refreshed through the CSR positions saved at
+    ! build time (also threaded), which gives exactly what a rebuild would.
+    ! Any difference at all triggers the full rebuild.
+    ! -----------------------------------------------------------------
+
+    ! make sure line_cache(1:nlev) exists (entries are kept across growth)
+    subroutine ensure_line_cache(nlev)
+        integer, intent(in) :: nlev
+        type(line_cache_t), allocatable :: tmp(:)
+        integer :: n
+        if (.not. allocated(line_cache)) then
+            allocate(line_cache(max(nlev,1)))
+        else if (size(line_cache) < nlev) then
+            n = size(line_cache)
+            allocate(tmp(nlev))
+            tmp(1:n) = line_cache(1:n)
+            call move_alloc(tmp, line_cache)
+        endif
+    end subroutine ensure_line_cache
+
+    ! structural-zero flag of CSR entry (row r, column c, value v):
+    ! same field, off-diagonal, exactly zero -> not an edge for build_line_decomp
+    pure logical function szero(r, c, v)
+        integer,      intent(in) :: r, c
+        real(kind=8), intent(in) :: v
+        szero = (c /= r) .and. (mod(c,2) == mod(r,2)) .and. (v == 0.d0)
+    end function szero
+
+    ! does the current matrix have exactly the structure cached in c?
+    logical function same_structure(c, rowPtr, cols, vals, nnz, ntot) result(same)
+        type(line_cache_t), intent(in) :: c
+        integer,      intent(in) :: nnz, ntot, rowPtr(0:ntot), cols(0:nnz-1)
+        real(kind=8), intent(in) :: vals(0:nnz-1)
+        integer :: r, p
+        logical :: ok
+        same = .false.
+        if (.not. c%valid) return
+        if (c%ntot /= ntot .or. c%nnz /= nnz) return
+        if (rowPtr(ntot) /= c%rowPtr(ntot)) return
+        ok = .true.
+        !$omp parallel do schedule(static) default(shared) private(r,p) reduction(.and.:ok)
+        do r = 0, ntot-1
+            if (rowPtr(r) /= c%rowPtr(r)) ok = .false.
+            do p = rowPtr(r), rowPtr(r+1)-1
+                if (cols(p) /= c%cols(p)) ok = .false.
+                if (szero(r, cols(p), vals(p)) .neqv. c%zmask(p)) ok = .false.
+            end do
+        end do
+        !$omp end parallel do
+        same = ok
+    end function same_structure
+
+    ! remember the structure the decompositions in c were just built from
+    subroutine store_structure(c, rowPtr, cols, vals, nnz, ntot)
+        type(line_cache_t), intent(inout) :: c
+        integer,      intent(in) :: nnz, ntot, rowPtr(0:ntot), cols(0:nnz-1)
+        real(kind=8), intent(in) :: vals(0:nnz-1)
+        integer :: r, p
+        if (allocated(c%rowPtr)) deallocate(c%rowPtr, c%cols, c%zmask)
+        allocate(c%rowPtr(0:ntot), c%cols(0:max(nnz,1)-1), c%zmask(0:max(nnz,1)-1))
+        c%ntot = ntot; c%nnz = nnz
+        c%rowPtr(ntot) = rowPtr(ntot)
+        !$omp parallel do schedule(static) default(shared) private(r,p)
+        do r = 0, ntot-1
+            c%rowPtr(r) = rowPtr(r)
+            do p = rowPtr(r), rowPtr(r+1)-1
+                c%cols(p)  = cols(p)
+                c%zmask(p) = szero(r, cols(p), vals(p))
+            end do
+        end do
+        !$omp end parallel do
+        c%valid = .true.
+    end subroutine store_structure
+
+    ! re-read diag/sub/sup from the current values through the saved positions
+    subroutine refresh_line_values(D, vals, nnz)
+        type(line_decomp_t), intent(inout) :: D
+        integer,      intent(in) :: nnz
+        real(kind=8), intent(in) :: vals(0:nnz-1)
+        integer :: s
+        !$omp parallel do schedule(static) default(shared) private(s)
+        do s = 1, D%nfield
+            if (D%pdiag(s) >= 0) then
+                D%diag(s) = vals(D%pdiag(s))
+            else
+                D%diag(s) = 0.d0
+            endif
+            if (D%psub(s) >= 0) then
+                D%sub(s) = vals(D%psub(s))
+            else
+                D%sub(s) = 0.d0
+            endif
+            if (D%psup(s) >= 0) then
+                D%sup(s) = vals(D%psup(s))
+            else
+                D%sup(s) = 0.d0
+            endif
+        end do
+        !$omp end parallel do
+    end subroutine refresh_line_values
+
+    ! Bring line_cache(level)%D0 / %D1 up to date with the current matrix:
+    ! refresh the coefficients if the structure is unchanged, else rebuild.
+    subroutine update_line_decomp(level, rowPtr, cols, vals, nnz, ntot, rebuilt)
+        integer,      intent(in)  :: level, nnz, ntot, rowPtr(0:ntot), cols(0:nnz-1)
+        real(kind=8), intent(in)  :: vals(0:nnz-1)
+        logical,      intent(out) :: rebuilt
+        call ensure_line_cache(level)
+        if (same_structure(line_cache(level), rowPtr, cols, vals, nnz, ntot)) then
+            call refresh_line_values(line_cache(level)%D0, vals, nnz)
+            call refresh_line_values(line_cache(level)%D1, vals, nnz)
+            rebuilt = .false.
+            linecache_nreuse = linecache_nreuse + 1
+        else
+            call build_line_decomp(rowPtr, cols, vals, nnz, ntot, 0, line_cache(level)%D0)
+            call build_line_decomp(rowPtr, cols, vals, nnz, ntot, 1, line_cache(level)%D1)
+            call store_structure(line_cache(level), rowPtr, cols, vals, nnz, ntot)
+            rebuilt = .true.
+            linecache_nrebuild = linecache_nrebuild + 1
+        endif
+    end subroutine update_line_decomp
 
     ! -----------------------------------------------------------------
     ! Sub-block matvec:  b(r) = sum_{c: parity(c)=col_parity} A(r,c) x(c)

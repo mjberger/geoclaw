@@ -31,11 +31,12 @@ program test_tridiag
     real(kind=8), allocatable :: ev(:)
     integer, allocatable :: rowPtr(:), cols(:)
     real(kind=8), allocatable :: vals(:)
-    integer :: nent, nnz, k22, i
-    type(line_decomp_t) :: D0, D1, DR
+    integer :: nent, nnz, k22, i, p
+    type(line_decomp_t) :: D0, D1, DR, DU, DV
     real(kind=8), allocatable :: xtrue(:), b(:), x(:)
     real(kind=8) :: err
     integer :: nfail
+    logical :: rebuilt
 
     nfail = 0
     allocate(er(8*N), ec(8*N), ev(8*N))
@@ -78,6 +79,43 @@ program test_tridiag
     call apply_line_solve(DR, b, x)
     err = fielderr(x, xtrue, ntot, 0)
     call check_err(err, tol, 'u-revert block solve exact (asymmetric)', nfail)
+
+    ! ---- decomposition cache: refresh when the structure is unchanged ----
+    write(*,*)
+    call update_line_decomp(1, rowPtr, cols, vals, nnz, ntot, rebuilt)
+    call check_true(rebuilt, 'cache: first call rebuilds', nfail)
+    vals = 1.7d0*vals                          ! new values, same zero pattern
+    call update_line_decomp(1, rowPtr, cols, vals, nnz, ntot, rebuilt)
+    call check_true(.not. rebuilt, 'cache: same structure -> reused', nfail)
+    call build_line_decomp(rowPtr, cols, vals, nnz, ntot, 0, DU)   ! reference rebuilds
+    call build_line_decomp(rowPtr, cols, vals, nnz, ntot, 1, DV)
+    err = max(maxval(abs(line_cache(1)%D0%diag - DU%diag)),  &
+              maxval(abs(line_cache(1)%D0%sub  - DU%sub)),   &
+              maxval(abs(line_cache(1)%D0%sup  - DU%sup)),   &
+              maxval(abs(line_cache(1)%D1%diag - DV%diag)),  &
+              maxval(abs(line_cache(1)%D1%sub  - DV%sub)),   &
+              maxval(abs(line_cache(1)%D1%sup  - DV%sup)))
+    call check_err(err, 0.d0, 'cache: refreshed coefficients == fresh rebuild', nfail)
+    call check_true(all(line_cache(1)%D0%dof == DU%dof) .and. &
+                    all(line_cache(1)%D1%dof == DV%dof), 'cache: same paths', nfail)
+    call spmv_field(rowPtr, cols, vals, nnz, ntot, 0, xtrue, b)
+    call apply_line_solve(line_cache(1)%D0, b, x)
+    err = fielderr(x, xtrue, ntot, 0)
+    call check_err(err, tol, 'cache: u solve exact after refresh', nfail)
+    ! a same-field entry becoming exactly zero changes the graph -> rebuild
+    call zero_entry(rowPtr, cols, vals, nnz, ntot, udof(k22+1), udof(k22))
+    call update_line_decomp(1, rowPtr, cols, vals, nnz, ntot, rebuilt)
+    call check_true(rebuilt, 'cache: zero-pattern change -> rebuilt', nfail)
+    call check_int(line_cache(1)%D0%npaths, ny+1, 'cache: rebuilt decomposition sees the split line', nfail)
+    ! a column index change (cross block, same values) -> rebuild
+    do p = rowPtr(udof(1)), rowPtr(udof(1)+1)-1
+        if (cols(p) == vdof(1)) cols(p) = vdof(2)
+    end do
+    call update_line_decomp(1, rowPtr, cols, vals, nnz, ntot, rebuilt)
+    call check_true(rebuilt, 'cache: column index change -> rebuilt', nfail)
+    call update_line_decomp(1, rowPtr, cols, vals, nnz, ntot, rebuilt)
+    call check_true(.not. rebuilt, 'cache: unchanged again -> reused', nfail)
+    call free_line_decomp(DU); call free_line_decomp(DV)
 
     ! ---- apply_block_gs: exact inverse on a block-LOWER-triangular system ----
     ! With A01=0 the matrix is [[A00,0],[A10,A11]], for which forward block
