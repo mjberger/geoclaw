@@ -265,6 +265,18 @@ subroutine buildSparseMatrixSGNcrs(q,qold,aux,soln,rhs,rowPtr,cols,vals,   &
                 rowPtr(2*k_ij-1) = rowPtr(2*(k_ij-1))+12  ! start of v_ij eq
                 colPtr = rowPtr(2*(k_ij-1))
 
+                ! initial guess for the solve: psi from the previous solve on
+                ! this level, saved in components 4,5 of the old-time storage
+                ! (qold = q on the finest level).  gmres_solve only uses it
+                ! when gmres_use_guess is set; cells that revert to SWE get 0.
+                if (mi%isBouss(i,j)) then
+                    soln(2*(k_ij-1)) = qold(4,i,j)
+                    soln(2*k_ij-1)   = qold(5,i,j)
+                else
+                    soln(2*(k_ij-1)) = 0.d0
+                    soln(2*k_ij-1)   = 0.d0
+                endif
+
                 ! initialize all cols for these equations to start, even if it's col*unknown = 0
                 
                 !b_min = min(aux(1,i,j), aux(1,i-1,j),aux(1,i+1,j),     &

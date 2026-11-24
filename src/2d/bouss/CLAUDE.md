@@ -46,7 +46,8 @@ A = [ I - D11    -D12   ]
    build time (`pdiag/psub/psup`), which is exactly what a rebuild would give.
    Any difference rebuilds both decompositions. The walk itself is still serial.
 3. `gmres_solve` runs **right-preconditioned restarted GMRES(50)**, `rtol 1e-9`,
-   up to 4 cycles. The new Krylov vector is orthogonalized by **classical
+   up to 4 cycles, starting from the previous solve's psi (see "Nonzero initial
+   guess"). The new Krylov vector is orthogonalized by **classical
    Gram-Schmidt in two threaded block passes** (`cgs_orth`: all j dot products in
    one sweep, all j updates in one sweep, re-orthogonalized only when the update
    removed more than a factor `cgs_reorth_tol = 1e-3` of the norm). Modified
@@ -95,7 +96,9 @@ Modified: `implicit_update_bouss_2Calls.f90`, `prepBuildSparseMatrixSGNcrs.f90`,
 - Diagnostics printed at end of run (`bouss_solver=1`): `line-decomp` and
   `compressOut` timers, the longest tridiagonal line seen (`maxLineLen`), how
   many line decompositions were rebuilt vs reused, the orthogonalization mode
-  and re-orthogonalization count, and the doubleCheck statistics.
+  and re-orthogonalization count, the doubleCheck statistics, the wall time
+  per Krylov phase (preconditioner / matvec / orthogonalization), the
+  initial-guess statistics and the solves-by-kind table (see below).
 
 ## Orthogonalization modes (Nov 2026)
 
@@ -168,6 +171,51 @@ while the laptop was also in use). **Always compare a solver-independent timer
 before attributing a gain.** What remains of `line-decomp` is the threaded
 structure comparison + value refresh (~1 ms per solve on tohoku) plus the rebuilds,
 whose walk is still serial. Outputs: `_output_O2_cache` in each example directory.
+
+## Nonzero initial guess (Nov 2026)
+
+Every solve starts from the psi of the previous solve on that level instead of
+from zero (module flag `gmres_use_guess`, default on; `BOUSS_GMRES_GUESS=0`
+turns it off).
+`buildSparseMatrixSGNcrs` loads it into `soln` from components 4,5 of the
+old-time storage (`qold`, which is `q` on the finest level) while it numbers
+the cells, so regridding needs no special handling (new grids carry
+interpolated psi; cells that revert to SWE get 0). `gmres_solve` measures
+||b − A x0||/||b|| with the first residual evaluation it makes anyway and, if
+the guess is worse than zero, falls back to x0 = 0. That guard is needed: on
+nearly quiescent grids ||b|| is at round-off level while the stored psi is
+not (858 of 15488 guesses rejected on crater, ratios up to 1e12). The stopping
+test stays ||b − A x|| ≤ rtol ||b||, so accuracy is unchanged: 0 failed
+doubleChecks, same max true residual, radial_flat final frame identical in
+grid structure with values differing by 2e-10 relative.
+
+| case (8 threads, `-O2`) | linear solve s, off → on | avg iterations per level, off → on |
+|---|---|---|
+| radial_flat (2 levels)     | 55.1 → **47.4** (−14%)  | 11.0 / 19.1 → 9.7 / 16.7 |
+| crater_westport (7 levels) | 247.4 → **210.3** (−15%) | 3.0 / 5.0 / 7.5 / 10.4 / 12.7 / 6.9 / 6.6 → 3.0 / 4.6 / 7.1 / 8.8 / 9.6 / 6.6 / 6.0 |
+
+The solves split into three kinds (`gmres_guess_kind`, set in `implicit_update`
+from `doUpdate` and `levelBouss < mxnest`); radial_flat, guess on:
+
+| kind | the guess is | solves | iters off → on | mean eff. ratio |
+|---|---|---:|---:|---:|
+| 1 coarse-level 1st solve | previous step's 2nd solve, same time level, but the fine-grid overlap was replaced by fine averages since | 341 | 11.00 → 9.36 | 0.033 |
+| 2 coarse-level 2nd solve | this step's 1st solve, one SWE step stale | 341 | 11.00 → 10.00 | 0.23 |
+| 3 finest level | previous step's solve, one step stale | 1497 | 19.10 → 16.65 | 0.064 |
+
+A 10–30× smaller initial residual saves only 1.5–2.5 iterations because the
+preconditioned GMRES contracts by ~0.15–0.35 per iteration, so this is close
+to the ceiling for any initial guess. Re-orthogonalizations rise (224 → 1016
+on crater) because more solves end on the nearly-invariant-Krylov-space event;
+harmless. An earlier attempt at an initial guess (PETSc era) showed no gain;
+a stopping test relative to the initial residual instead of ||b|| would
+explain that.
+
+Krylov phase timers, guess off: radial_flat 55 s = preconditioner 22.4 +
+orthogonalization 19.9 + matvec 7.5 + rest 5 (line-decomp 2.6, vector ops);
+crater 247 s = 113.6 + 66.6 + 37.0 + rest 30 (line-decomp 15). The block
+Gauss–Seidel apply is the next target (fused vector passes in `apply_block_gs`
+/ `sub_matvec`, one reciprocal per line in the Thomas solve).
 
 ## Hard-won lessons / gotchas (read before editing)
 

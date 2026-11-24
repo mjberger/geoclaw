@@ -3,9 +3,12 @@
 !
 ! Builds a 2x2-block interleaved system (u x-tridiagonal, v y-tridiagonal,
 ! plus u<->v cross-coupling) and checks that gmres_solve:
-!   (A) converges unpreconditioned to the true solution, and
+!   (A) converges unpreconditioned to the true solution,
 !   (B) converges with the block Gauss-Seidel PC in fewer iterations,
-! both to the requested tolerance, matching a known x_true.
+! both to the requested tolerance, matching a known x_true, and
+!   (C) with the nonzero initial guess (gmres_use_guess, the default): an
+!       exact guess needs 0 iterations, a close guess fewer than from zero,
+!       and a guess worse than zero is replaced by zero (same count as (B)).
 !
 !   gfortran -O2 -fopenmp bouss_tridiag_module.f90 bouss_gmres_module.f90 \
 !            test_gmres.f90 -o test_gmres && ./test_gmres
@@ -24,7 +27,8 @@ program test_gmres
     type(line_decomp_t) :: D0, D1
     real(kind=8), allocatable :: xtrue(:), b(:), x(:)
     real(kind=8) :: err, resid
-    integer :: iters, info, nfail, d
+    integer :: iters, info, nfail, d, itersB
+    integer(kind=8) :: nbad0
 
     nfail = 0
     allocate(er(8*N), ec(8*N), ev(8*N))
@@ -42,7 +46,10 @@ program test_gmres
 
     write(*,'(a,i0,a,i0,a,i0)') 'grid ', nx, ' x ', ny, ',  ntot = ', ntot
 
+    ! x is the initial guess when gmres_use_guess is on (the default), so
+    ! start (A) and (B) from zero explicitly
     ! ---- (A) unpreconditioned GMRES ----
+    x = 0.d0
     call gmres_solve(rowPtr, cols, vals, nnz, ntot, D0, D1, .false., b, x, &
                      rtol, 100, 2, iters, resid, info)
     err = solerr(x, xtrue, ntot)
@@ -52,13 +59,47 @@ program test_gmres
                'unpreconditioned GMRES converges to true solution', nfail)
 
     ! ---- (B) block Gauss-Seidel preconditioned GMRES ----
+    x = 0.d0
     call gmres_solve(rowPtr, cols, vals, nnz, ntot, D0, D1, .true., b, x, &
                      rtol, 100, 2, iters, resid, info)
     err = solerr(x, xtrue, ntot)
+    itersB = iters
     write(*,'(a,i4,a,es10.2,a,es10.2)') '  [block-GS PC ] iters=', iters, &
           '  resid=', resid, '  err=', err
     call check(info == 0 .and. resid <= rtol .and. err <= 1.d-7, &
                'block-GS preconditioned GMRES converges to true solution', nfail)
+    call check(itersB > 0, 'from-zero solve really iterated', nfail)
+
+    ! ---- (C) nonzero initial guess ----
+    gmres_use_guess = .true.
+    x = xtrue                                   ! exact guess: nothing to do
+    call gmres_solve(rowPtr, cols, vals, nnz, ntot, D0, D1, .true., b, x, &
+                     rtol, 100, 2, iters, resid, info)
+    err = solerr(x, xtrue, ntot)
+    write(*,'(a,i4,a,es10.2,a,es10.2)') '  [exact guess ] iters=', iters, &
+          '  resid=', resid, '  err=', err
+    call check(info == 0 .and. iters == 0 .and. resid <= rtol .and. err <= 1.d-7, &
+               'exact initial guess returns after 0 iterations', nfail)
+
+    x = 0.99d0*xtrue                            ! close guess: fewer iterations
+    call gmres_solve(rowPtr, cols, vals, nnz, ntot, D0, D1, .true., b, x, &
+                     rtol, 100, 2, iters, resid, info)
+    err = solerr(x, xtrue, ntot)
+    write(*,'(a,i4,a,es10.2,a,es10.2)') '  [close guess ] iters=', iters, &
+          '  resid=', resid, '  err=', err
+    call check(info == 0 .and. iters < itersB .and. resid <= rtol .and. err <= 1.d-7, &
+               'close initial guess converges in fewer iterations than from zero', nfail)
+
+    nbad0 = gmres_nguess_bad
+    x = -50.d0*xtrue                            ! worse than zero: guard drops it
+    call gmres_solve(rowPtr, cols, vals, nnz, ntot, D0, D1, .true., b, x, &
+                     rtol, 100, 2, iters, resid, info)
+    err = solerr(x, xtrue, ntot)
+    write(*,'(a,i4,a,es10.2,a,es10.2)') '  [bad guess   ] iters=', iters, &
+          '  resid=', resid, '  err=', err
+    call check(info == 0 .and. iters == itersB .and. gmres_nguess_bad == nbad0+1 &
+               .and. resid <= rtol .and. err <= 1.d-7, &
+               'guess worse than zero is replaced by zero (same iterations as (B))', nfail)
 
     write(*,*)
     if (nfail == 0) then

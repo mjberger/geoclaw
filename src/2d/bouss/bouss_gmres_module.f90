@@ -61,6 +61,30 @@ module bouss_gmres_module
     logical, public, save :: doubleCheck = .true.
     integer, public, save :: gmres_ncheckfail = 0     ! verifications that failed
     real(kind=8), public, save :: gmres_max_est_err = 0.d0, gmres_max_true_resid = 0.d0
+    ! Nonzero initial guess (default on; environment variable BOUSS_GMRES_GUESS=0
+    ! turns it off): gmres_solve starts from the x it is given, which
+    ! buildSparseMatrixSGNcrs loads with the psi of the previous solve on the
+    ! level (saved in q(4:5)), instead of from 0.  The first residual
+    ! evaluation measures ||b - A x0||/||b||; if that exceeds 1 the guess is
+    ! worse than zero and x0 = 0 is used after all.  The stopping test stays
+    ! ||b - A x|| <= rtol*||b||, so the accuracy is the same either way.
+    ! Measured: linear solve -14% on radial_flat, -15% on crater_westport.
+    logical, public, save :: gmres_use_guess = .true.
+    integer(kind=8), public, save :: gmres_nguess = 0, gmres_nguess_bad = 0
+    integer(kind=8), public, save :: gmres_nguess_good = 0   ! ratio below 0.1
+    real(kind=8), public, save :: gmres_sum_guess_ratio = 0.d0
+    real(kind=8), public, save :: gmres_max_guess_ratio = 0.d0
+    ! Breakdown of the solves by what the guess is (set by implicit_update
+    ! before each call): 1 = first solve of a step on a coarse level (guess is
+    ! the previous step's second solve, same time level), 2 = second solve on a
+    ! coarse level (guess is this step's first solve, one SWE step stale),
+    ! 3 = finest level (guess is the previous step's solve, one step stale).
+    integer, public, save :: gmres_guess_kind = 3
+    integer(kind=8), public, save :: gmres_nsolve_k(3) = 0, gmres_iters_k(3) = 0
+    real(kind=8), public, save :: gmres_sum_ratio_k(3) = 0.d0
+    ! wall seconds in the three phases of the Krylov loop (end-of-run profile)
+    real(kind=8), public, save :: gmres_t_pc = 0.d0, gmres_t_mv = 0.d0
+    real(kind=8), public, save :: gmres_t_orth = 0.d0
     logical, save :: orth_init = .false.
     real(kind=8), allocatable, save :: hpart(:,:) ! (m+1, nthreads) partial sums, mode 3
     integer, save :: hp_m = -1, hp_nth = -1
@@ -151,15 +175,17 @@ contains
         type(line_decomp_t), intent(in) :: D0, D1
         logical,      intent(in)  :: precondition
         real(kind=8), intent(in)  :: b(0:ntot-1)
-        real(kind=8), intent(out) :: x(0:ntot-1)
+        real(kind=8), intent(inout) :: x(0:ntot-1)   ! in: initial guess (used only
+                                                     !     when gmres_use_guess)
         real(kind=8), intent(in)  :: rtol
         integer,      intent(in)  :: m, maxcycles
         integer,      intent(out) :: iters, info
         real(kind=8), intent(out) :: resid
 
-        real(kind=8) :: beta, bnorm, denom, tmp, s
+        real(kind=8) :: beta, bnorm, denom, tmp, s, ratio0
         logical, save :: hist_printed = .false.
         integer :: i, j, k, cyc, jj, r, nth, istat, ios
+        integer(kind=8) :: c0, c1, c2, crate
         character(len=16) :: envstr
         logical :: est_conv
         integer :: omp_get_max_threads      ! external, called only on !$ lines
@@ -178,14 +204,19 @@ contains
             endif
             call get_environment_variable('BOUSS_GMRES_DOUBLECHECK', envstr, status=istat)
             if (istat == 0 .and. len_trim(envstr) > 0) doubleCheck = (envstr(1:1) /= '0')
+            call get_environment_variable('BOUSS_GMRES_GUESS', envstr, status=istat)
+            if (istat == 0 .and. len_trim(envstr) > 0) gmres_use_guess = (envstr(1:1) /= '0')
             write(*,'(a,i0,a)') ' GMRES orthogonalization mode ', gmres_orth, &
                   '  (1 = MGS threaded, 2 = MGS serial, 3 = CGS + re-orth test)'
             if (gmres_orth == 3) write(*,'(a,es9.2)') &
                   ' GMRES CGS re-orthogonalization threshold ', cgs_reorth_tol
             write(*,'(a,l1)') ' GMRES doubleCheck (true residual verified at convergence): ', &
                   doubleCheck
+            write(*,'(a,l1)') ' GMRES nonzero initial guess from previous psi in q(4:5): ', &
+                  gmres_use_guess
             orth_init = .true.
         endif
+        call system_clock(count_rate=crate)
 
         if (ntot > wk_ntot .or. m > wk_m) then   ! grow persistent buffers
             if (allocated(V)) deallocate(V,H,cs,sn,g,yy,w,z,zsum,reshist)
@@ -204,11 +235,12 @@ contains
         endif
         reshist = 0.d0
 
-        x = 0.d0
+        if (.not. gmres_use_guess) x = 0.d0
         iters = 0
         info  = 1
         bnorm = sqrt(omp_dot(ntot, b, b))
         if (bnorm == 0.d0) then
+            x = 0.d0
             resid = 0.d0; info = 0
             return
         endif
@@ -216,12 +248,35 @@ contains
         cyc = 0
         est_conv = .false.
         do
-            ! true residual r = b - A x  (x0=0 the first time).  With doubleCheck
-            ! the loop also comes back here after the in-cycle estimate reached
-            ! rtol, so the claim is verified before returning.
+            ! true residual r = b - A x  (x0 = 0 or the caller's guess the first
+            ! time).  With doubleCheck the loop also comes back here after the
+            ! in-cycle estimate reached rtol, so the claim is verified before
+            ! returning.
+            call system_clock(c0)
             call csr_matvec(rowPtr, cols, vals, nnz, ntot, x, w)
+            call system_clock(c1)
+            gmres_t_mv = gmres_t_mv + real(c1-c0,8)/real(crate,8)
             call omp_axpy(ntot, -1.d0, b, w)      ! w = A x - b
             beta = sqrt(omp_dot(ntot, w, w))      ! ||A x - b|| = ||r||
+            if (cyc == 0 .and. gmres_use_guess) then   ! judge the initial guess
+                ratio0 = beta / bnorm
+                gmres_nguess = gmres_nguess + 1
+                ! statistics use the EFFECTIVE ratio min(ratio0, 1): a guess
+                ! worse than zero is replaced by zero below, and on nearly
+                ! quiescent grids ||b|| is at round-off level so ratio0 can be
+                ! 1e12 and would swamp a plain mean.
+                gmres_sum_guess_ratio = gmres_sum_guess_ratio + min(ratio0, 1.d0)
+                gmres_max_guess_ratio = max(gmres_max_guess_ratio, ratio0)
+                gmres_sum_ratio_k(gmres_guess_kind) = gmres_sum_ratio_k(gmres_guess_kind) &
+                                                      + min(ratio0, 1.d0)
+                if (ratio0 < 0.1d0) gmres_nguess_good = gmres_nguess_good + 1
+                if (beta > bnorm) then                 ! worse than x0 = 0: use 0
+                    gmres_nguess_bad = gmres_nguess_bad + 1
+                    x = 0.d0
+                    call omp_scalecopy(ntot, -1.d0, b, w)   ! w = A x - b = -b
+                    beta = bnorm
+                endif
+            endif
             if (est_conv) then                    ! verifying the estimate in `resid`
                 gmres_max_est_err    = max(gmres_max_est_err, abs(beta/bnorm - resid))
                 gmres_max_true_resid = max(gmres_max_true_resid, beta/bnorm)
@@ -239,9 +294,14 @@ contains
             k = 0
             do j = 1, m
                 k = j
+                call system_clock(c0)
                 call apply_pc(precondition, D0, D1, rowPtr, cols, vals, nnz, &
                               ntot, V(:,j), z)                        ! z = M^-1 v_j
+                call system_clock(c1)
                 call csr_matvec(rowPtr, cols, vals, nnz, ntot, z, w)  ! w = A z
+                call system_clock(c2)
+                gmres_t_pc = gmres_t_pc + real(c1-c0,8)/real(crate,8)
+                gmres_t_mv = gmres_t_mv + real(c2-c1,8)/real(crate,8)
                 ! orthogonalize w against V(:,1:j); sets H(1:j,j), H(j+1,j)=||w||
                 select case (gmres_orth)
                 case (2)        ! modified Gram-Schmidt, serial
@@ -274,6 +334,8 @@ contains
                 else
                     V(:,j+1) = 0.d0
                 endif
+                call system_clock(c0)
+                gmres_t_orth = gmres_t_orth + real(c0-c2,8)/real(crate,8)
                 ! apply previous Givens rotations to new column
                 do i = 1, j-1
                     tmp      =  cs(i)*H(i,j) + sn(i)*H(i+1,j)
@@ -308,7 +370,10 @@ contains
             do i = 1, k
                 call omp_axpy(ntot, yy(i), V(:,i), zsum)
             end do
+            call system_clock(c0)
             call apply_pc(precondition, D0, D1, rowPtr, cols, vals, nnz, ntot, zsum, z)
+            call system_clock(c1)
+            gmres_t_pc = gmres_t_pc + real(c1-c0,8)/real(crate,8)
             call omp_axpy(ntot, 1.d0, z, x)
 
             if (resid <= rtol) then               ! Givens estimate says converged
@@ -332,6 +397,8 @@ contains
                 endif
             endif
         end do
+        gmres_nsolve_k(gmres_guess_kind) = gmres_nsolve_k(gmres_guess_kind) + 1
+        gmres_iters_k(gmres_guess_kind)  = gmres_iters_k(gmres_guess_kind)  + iters
     end subroutine gmres_solve
 
     ! -----------------------------------------------------------------

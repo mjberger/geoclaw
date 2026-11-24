@@ -91,7 +91,12 @@ program amr2
     use amr_module, only: maxLineLen, maxLineLevel
     use bouss_gmres_module, only: gmres_orth, gmres_nreorth, cgs_reorth_tol,   &
                                   doubleCheck, gmres_ncheckfail,               &
-                                  gmres_max_est_err, gmres_max_true_resid
+                                  gmres_max_est_err, gmres_max_true_resid,     &
+                                  gmres_use_guess, gmres_nguess, gmres_nguess_bad, &
+                                  gmres_nguess_good,                           &
+                                  gmres_sum_guess_ratio, gmres_max_guess_ratio, &
+                                  gmres_t_pc, gmres_t_mv, gmres_t_orth,        &
+                                  gmres_nsolve_k, gmres_iters_k, gmres_sum_ratio_k
     use bouss_tridiag_module, only: linecache_nreuse, linecache_nrebuild
     use amr_module, only: kcheck, iorder, lendim, lenmax, memsize
 
@@ -852,6 +857,40 @@ program amr2
                  '  max |est - true| rel resid ',es9.2,                    &
                  '  max true rel resid ',es9.2)
        endif
+       write(*,996) gmres_t_pc, gmres_t_mv, gmres_t_orth
+       write(timing_unit,996) gmres_t_pc, gmres_t_mv, gmres_t_orth
+ 996   format(' GMRES phases (wall s): preconditioner ',f10.3,            &
+              '  matvec ',f10.3,'  orthogonalization ',f10.3)
+       if (gmres_use_guess) then
+          write(*,995) gmres_nguess,                                      &
+                       gmres_sum_guess_ratio/dble(max(gmres_nguess,1_8)), &
+                       gmres_nguess_good, gmres_nguess_bad
+          write(timing_unit,995) gmres_nguess,                            &
+                       gmres_sum_guess_ratio/dble(max(gmres_nguess,1_8)), &
+                       gmres_nguess_good, gmres_nguess_bad
+ 995      format(' GMRES initial guess from q(4:5): ',i8,' solves,',      &
+                 '  mean effective ||b - A x0||/||b|| ',es9.2,            &
+                 '  (below 0.1 in ',i8,';  worse than zero, replaced by 0: ',i8,')')
+       endif
+       ! solves by kind: 1 = first solve of a step on a coarse level (guess =
+       ! previous step's second solve, same time level), 2 = second solve on a
+       ! coarse level (guess = this step's first solve), 3 = finest level
+       write(*,997)
+       write(timing_unit,997)
+ 997   format(' GMRES solves by kind (1 coarse-level 1st solve, 2 coarse-level', &
+              ' 2nd solve, 3 finest level):',/,                                 &
+              '      kind      solves   avg iters   mean effective ||b - A x0||/||b||')
+       do i = 1, 3
+          if (gmres_nsolve_k(i) > 0) then
+             write(*,998) i, gmres_nsolve_k(i),                                 &
+                   dble(gmres_iters_k(i))/dble(gmres_nsolve_k(i)),              &
+                   gmres_sum_ratio_k(i)/dble(gmres_nsolve_k(i))
+             write(timing_unit,998) i, gmres_nsolve_k(i),                       &
+                   dble(gmres_iters_k(i))/dble(gmres_nsolve_k(i)),              &
+                   gmres_sum_ratio_k(i)/dble(gmres_nsolve_k(i))
+          endif
+       end do
+ 998   format(6x,i4,2x,i10,2x,f10.2,8x,es9.2)
     endif
 
 

@@ -13,7 +13,7 @@ subroutine implicit_update(nvar,naux,levelBouss,numBoussCells,doUpdate,time)
     use topo_module, only: aux_finalized
     use bouss_module
     use bouss_tridiag_module, only: update_line_decomp, line_cache
-    use bouss_gmres_module,   only: gmres_solve
+    use bouss_gmres_module,   only: gmres_solve, gmres_guess_kind
 
     implicit none
     
@@ -151,6 +151,15 @@ subroutine implicit_update(nvar,naux,levelBouss,numBoussCells,doUpdate,time)
                 maxLineLen = line_cache(levelBouss)%D1%maxline
                 maxLineLevel = levelBouss
              endif
+          endif
+          ! classify the solve for the initial-guess statistics: on a coarse
+          ! level the first solve of a step (doUpdate) starts from the previous
+          ! step's second solve at the same time level, the second solve from
+          ! this step's first; the finest level has one solve per step.
+          if (levelBouss .lt. mxnest) then
+             gmres_guess_kind = merge(1, 2, doUpdate)
+          else
+             gmres_guess_kind = 3
           endif
           ! right-preconditioned GMRES(50), block G-S PC, rtol=1e-9, <=200 its
           call gmres_solve(minfo%rowPtr,minfo%cols,minfo%vals,             &
